@@ -3,7 +3,7 @@ import type { Box, Step } from "@/lib/types";
 const pct = (v: number, of: number) => (of > 0 ? (v / of) * 100 : 0);
 
 // A screenshot with the SAM outline drawn on it, positioned in percentages.
-function Shot({ src, box, label, now }: { src: string; box: Box | null; label: string; now?: boolean }) {
+export function Shot({ src, box, label, now }: { src: string; box: Box | null; label: string; now?: boolean }) {
   return (
     <div className={`shot ${now ? "" : "then-media"}`}>
       <img src={src} alt={`${label} frame`} loading="lazy" />
@@ -33,7 +33,8 @@ interface Props {
 export function StepRow({ step, active, live, onSelect }: Props) {
   const v = step.verdict ?? "pending";
   const reasons = Array.isArray(step.reasons) ? step.reasons : [];
-  const hasNow = Boolean(step.now_shot_url && step.now_box);
+  // NOW shows today's screen even when the element is gone (no box): that absence is the finding.
+  const hasNow = Boolean(step.now_shot_url && (step.now_box || step.then_frame_url || step.action === "blender"));
   return (
     <article
       id={`step-${step.idx}`}
@@ -54,9 +55,9 @@ export function StepRow({ step, active, live, onSelect }: Props) {
             <pre>{step.replacement}</pre>
           </div>
         )}
-        {step.then_frame_url && (
-          <div className={`pair ${hasNow ? "two" : ""}`}>
-            <Shot src={step.then_frame_url} box={step.then_box} label="THEN" />
+        {(step.then_frame_url || hasNow) && (
+          <div className={`pair ${step.then_frame_url && hasNow ? "two" : ""}`}>
+            {step.then_frame_url && <Shot src={step.then_frame_url} box={step.then_box} label="THEN" />}
             {hasNow && <Shot src={step.now_shot_url!} box={step.now_box} label="NOW" now />}
           </div>
         )}

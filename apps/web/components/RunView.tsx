@@ -5,7 +5,7 @@ import type { Run, RunEvent, Step } from "@/lib/types";
 import { isFinished } from "@/lib/types";
 import { countVerdicts, runName, statusLabel, VERDICTS } from "@/lib/format";
 import { Tape } from "./Tape";
-import { StepRow } from "./StepRow";
+import { StepRow, Shot } from "./StepRow";
 
 interface Payload { run: Run; steps: Step[]; events: RunEvent[] }
 
@@ -116,6 +116,20 @@ export function RunView({ initial }: { initial: Payload }) {
         {run.status === "failed" && <pre>{run.error ?? "No error message was stored."}</pre>}
         {offline && !finished && <span className="eyebrow" style={{ margin: 0 }}>Connection lost, retrying</span>}
       </div>
+
+      {run.summary?.final && (
+        <section className="final">
+          <div className="eyebrow">The finished result, then and now</div>
+          <p className={`final-verdict m-${run.summary.final.match}`}>
+            <b>{run.summary.final.match === "yes" ? "Matches" : run.summary.final.match === "partly" ? "Partly matches" : "Does not match"}.</b>{" "}
+            {run.summary.final.note}
+          </p>
+          <div className="pair two">
+            <Shot src={run.summary.final.then_url} box={null} label="THEN" />
+            <Shot src={run.summary.final.now_url} box={null} label="NOW" now />
+          </div>
+        </section>
+      )}
 
       {steps.length > 0 && <Tape steps={steps} selected={selected} liveIdx={liveIdx} onSelect={select} />}
 

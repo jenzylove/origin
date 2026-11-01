@@ -12,7 +12,10 @@ export interface Run {
   status: RunStatus;
   mode: string;
   error: string | null;
-  summary: { counts?: Record<string, number> } | null;
+  summary: {
+    counts?: Record<string, number>;
+    final?: { then_url: string; now_url: string; match: "yes" | "partly" | "no"; note: string };
+  } | null;
   created_at: string;
   finished_at: string | null;
 }

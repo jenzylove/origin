@@ -211,3 +211,11 @@ table.results { width: 100%; border-collapse: collapse; font-size: 15px; }
 @media (prefers-reduced-motion: reduce) {
   *, *::before, *::after { animation: none !important; transition: none !important; }
 }
+
+/* Finished result, then and now */
+.final { margin: 28px 0; padding: 22px 0; border-top: 1px solid var(--line); border-bottom: 1px solid var(--line); }
+.final-verdict { font-size: 17px; line-height: 1.5; max-width: 70ch; margin: 8px 0 16px; }
+.final-verdict b { font-weight: 600; }
+.final-verdict.m-yes b { color: var(--works); }
+.final-verdict.m-partly b { color: var(--changed); }
+.final-verdict.m-no b { color: var(--broken); }
