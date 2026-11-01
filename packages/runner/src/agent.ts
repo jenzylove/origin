@@ -60,7 +60,7 @@ const TOOLS = [
     name: "grade_step",
     description: "Record the verdict for the current tutorial step. works = runs as taught and is still the current way. changed = runs but is deprecated, end of life, or no longer the recommended way. broken = fails today.",
     parameters: { type: "object", properties: {
-      verdict: { type: "string", enum: ["works", "changed", "broken", "skipped"], description: "skipped only when the step needs the user's account and nobody logged in" },
+      verdict: { type: "string", enum: ["works", "changed", "broken", "skipped"], description: "skipped only when the step needs the user's account and nobody logged in, or only opens a desktop app or editor on the viewer's machine" },
       reason: { type: "string", description: "One or two plain sentences a learner understands, citing the output you saw." },
       replacement_command: { type: "string", description: "For changed or broken: today's way, exactly as you ran it with exec and it passed." } },
       required: ["verdict", "reason"] } } },
@@ -76,6 +76,8 @@ Steps that install software on a desktop (download buttons, installers): look at
 Commands that keep running (dev servers, watch modes, "npm run watch", "npm start") must use exec with background=true; judge them from the first output and any files they produce.
 If a step is no longer needed today (for example a config file the tool no longer uses), grade it broken or changed and say so in the reason; leave replacement_command empty.
 When a step needs the user's account, open the site in the browser and call request_login at the login page. If nobody logs in, grade the step skipped with the reason "needs your account" and carry on.
+Steps that only open an editor or desktop app on the viewer's machine (code ., atom ., subl ., open ., start .) cannot be checked here: grade them skipped with the reason "opens your editor on your machine". A missing desktop tool is never a reason for broken.
+The reason must justify the verdict: works if it runs as taught and is still current; changed only when you name what is deprecated or different today; broken only when the taught way fails today.
 Never publish, post, pay, delete accounts, or send anything. Be fast: use few commands per step.`;
 
 const LONG_RUNNING = /\b(npm|pnpm|yarn|bun)\s+(run\s+)?(start|dev|serve|watch|preview)\b|^\s*(npx\s+)?(vite|nodemon|http-server|live-server|next\s+dev)(\s|$)|--watch\b/;
