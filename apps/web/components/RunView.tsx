@@ -25,7 +25,7 @@ export function RunView({ initial }: { initial: Payload }) {
 
   const finished = isFinished(run.status);
 
-  // Poll our own API every 1500 ms until the run is done or failed.
+  // Poll our own API until the run is done or failed; the next poll starts only after the last one ends.
   useEffect(() => {
     if (finished) return;
     let stop = false;
@@ -46,10 +46,15 @@ export function RunView({ initial }: { initial: Payload }) {
         if (!stop) setOffline(true);
       }
     };
-    const timer = setInterval(tick, 1500);
+    let timer: ReturnType<typeof setTimeout>;
+    const loop = async () => {
+      await tick();
+      if (!stop) timer = setTimeout(loop, 2000);
+    };
+    timer = setTimeout(loop, 2000);
     return () => {
       stop = true;
-      clearInterval(timer);
+      clearTimeout(timer);
     };
   }, [run.id, finished]);
 
@@ -122,7 +127,6 @@ export function RunView({ initial }: { initial: Payload }) {
       {run.status === "waiting_user" && (
         <LiveBrowser
           runId={run.id}
-          frameUrl={`${process.env.NEXT_PUBLIC_SUPABASE_URL}/storage/v1/object/public/media/${run.id}/live.jpg`}
           site={String([...events].reverse().find((e) => e.kind === "login_needed")?.payload?.site ?? "")}
         />
       )}

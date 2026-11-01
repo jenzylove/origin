@@ -6,9 +6,9 @@ const W = 1280, H = 720;
 const KEYS = ["Enter", "Tab", "Backspace", "Escape"];
 
 // The run's real browser, streamed. The person who started the run logs in here themselves.
-export function LiveBrowser({ runId, frameUrl, site }: { runId: string; frameUrl: string; site: string }) {
+export function LiveBrowser({ runId, site }: { runId: string; site: string }) {
   const [control, setControl] = useState<string | null>(null);
-  const [src, setSrc] = useState(`${frameUrl}?t=0`);
+  const [src, setSrc] = useState<string | null>(null);
   const [text, setText] = useState("");
   const [hide, setHide] = useState(true);
   const [error, setError] = useState<string | null>(null);
@@ -18,11 +18,12 @@ export function LiveBrowser({ runId, frameUrl, site }: { runId: string; frameUrl
     try { setControl(localStorage.getItem(`origin-control-${runId}`)); } catch { setControl(null); }
   }, [runId]);
 
-  // Preload each new frame before swapping, so the view never flickers to blank.
+  // Frames come through our server and only to the token holder. Preload each before swapping.
   useEffect(() => {
+    if (!control) return;
     let alive = true;
     const tick = () => {
-      const next = `${frameUrl}?t=${Date.now()}`;
+      const next = `/api/runs/${runId}/live?control=${control}&t=${Date.now()}`;
       const pre = new Image();
       pre.onload = () => { if (alive) setSrc(next); };
       pre.src = next;
@@ -30,7 +31,7 @@ export function LiveBrowser({ runId, frameUrl, site }: { runId: string; frameUrl
     const t = setInterval(tick, 700);
     tick();
     return () => { alive = false; clearInterval(t); };
-  }, [frameUrl]);
+  }, [runId, control]);
 
   async function send(kind: string, payload: object = {}) {
     if (!control) return;
@@ -52,8 +53,7 @@ export function LiveBrowser({ runId, frameUrl, site }: { runId: string; frameUrl
     return (
       <section className="live">
         <div className="eyebrow">Waiting for a login</div>
-        <p>This step needs an account on {site || "a site"}. Only the person who started this run can log in. Origin carries on when they do, or marks the step skipped after 10 minutes.</p>
-        <div className="shot"><img src={src} alt="The run's browser right now" /></div>
+        <p>This step needs an account on {site || "a site"}. Only the person who started this run can see the browser and log in. Origin carries on when they do, or marks the step skipped after 10 minutes.</p>
       </section>
     );
   }
@@ -61,9 +61,9 @@ export function LiveBrowser({ runId, frameUrl, site }: { runId: string; frameUrl
   return (
     <section className="live">
       <div className="eyebrow">Your turn: log in to {site || "the site"}</div>
-      <p>This is Origin&apos;s real browser. Click on it and type below to log in yourself. What you type goes straight to this browser; Origin never stores or logs it. Origin will still stop before anything is published, paid, deleted or sent.</p>
+      <p>This is Origin&apos;s real browser, visible only to you. Click on it and type below to log in yourself. What you type is held only until the browser applies it, then deleted, and never logged. After you log in, Origin saves no more screenshots publicly. It is built to stop before anything is published, paid, deleted or sent.</p>
       <div className="shot live-view">
-        <img ref={img} src={src} alt="Live browser" onClick={click} />
+        {src ? <img ref={img} src={src} alt="Live browser" onClick={click} /> : <p>Connecting to the browser…</p>}
       </div>
       <form className="live-type" onSubmit={(e) => { e.preventDefault(); if (text) { void send("text", { text }); setText(""); } }}>
         <input type={hide ? "password" : "text"} value={text} onChange={(e) => setText(e.target.value)} placeholder="Type into the clicked field" autoComplete="off" aria-label="Text to type" />

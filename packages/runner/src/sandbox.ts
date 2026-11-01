@@ -18,8 +18,9 @@ function run(argv: string[], timeoutMs: number): Promise<{ code: number; out: st
   return new Promise((resolve) => {
     const p = spawn(argv[0]!, argv.slice(1), { stdio: ["ignore", "pipe", "pipe"] });
     let out = "", err = "", timedOut = false;
-    p.stdout.on("data", (d) => (out += d));
-    p.stderr.on("data", (d) => (err += d));
+    const cap = 1_000_000;
+    p.stdout.on("data", (d) => { if (out.length < cap) out += d; });
+    p.stderr.on("data", (d) => { if (err.length < cap) err += d; });
     const timer = setTimeout(() => { timedOut = true; p.kill("SIGKILL"); }, timeoutMs);
     p.on("close", (code) => { clearTimeout(timer); resolve({ code: code ?? 124, out, err, timedOut }); });
   });
@@ -40,13 +41,15 @@ abstract class ShellSandbox implements Sandbox {
     const body = opts.background
       ? `nohup bash -lc ${sq(command)} > /tmp/bg.log 2>&1 &\nsleep 20; tail -c 3000 /tmp/bg.log`
       : command;
-    const script = `cd ${sq(this.cwd)} || exit 1\n${body}\ncode=$?\necho "${CWD_MARK}$(pwd)"\nexit $code`;
+    const script = `cd ${sq(this.cwd)} || exit 1\n${body}\ncode=$?\necho\necho "${CWD_MARK}$(pwd)"\nexit $code`;
     const r = await run(this.argv(script), timeoutMs);
     const lines = r.out.split("\n");
     const markAt = lines.findLastIndex((l) => l.startsWith(CWD_MARK));
     if (markAt >= 0) {
       this.cwd = lines[markAt]!.slice(CWD_MARK.length).trim();
       lines.splice(markAt, 1);
+      // Drop the blank line added so the marker always starts its own line.
+      if (markAt > 0 && lines[markAt - 1] === "") lines.splice(markAt - 1, 1);
     }
     return { exitCode: r.timedOut ? 124 : r.code, stdout: lines.join("\n"), stderr: r.err, cwd: this.cwd, timedOut: r.timedOut };
   }
@@ -58,7 +61,11 @@ export class DockerSandbox extends ShellSandbox {
 
   static async create(image = "node:22-bookworm"): Promise<DockerSandbox> {
     const name = `origin-${Date.now()}`;
-    execFileSync("docker", ["run", "-d", "--name", name, "-w", "/work", "--network", "host", image, "sleep", "infinity"]);
+    // Host network so the browser can reach the tutorial's dev server on localhost.
+    // Limits keep a runaway tutorial from taking the machine down; no environment variables pass in.
+    execFileSync("docker", ["run", "-d", "--name", name, "-w", "/work", "--network", "host",
+      "--memory", "6g", "--cpus", "3", "--pids-limit", "2048", "--security-opt", "no-new-privileges",
+      image, "sleep", "infinity"]);
     return new DockerSandbox(name);
   }
 

@@ -4,15 +4,36 @@ import { need } from "./env.js";
 const base = () => process.env.META_API_BASE ?? "https://api.meta.ai/v1";
 const auth = () => ({ Authorization: `Bearer ${need("META_API_KEY")}` });
 
+/** Tokens Spark used during this process, so every run can record its real cost. */
+export const usage = { input: 0, output: 0 };
+
+// Retries rate limits, server errors and dropped connections; every call has a time limit.
 async function postJson(path: string, body: unknown): Promise<any> {
-  const res = await fetch(base() + path, {
-    method: "POST",
-    headers: { ...auth(), "Content-Type": "application/json" },
-    body: JSON.stringify(body),
-  });
-  const text = await res.text();
-  if (!res.ok) throw new Error(`Meta ${path} ${res.status}: ${text.slice(0, 500)}`);
-  return JSON.parse(text);
+  const payload = JSON.stringify(body);
+  let last = "";
+  for (let attempt = 0; attempt < 4; attempt++) {
+    if (attempt) await new Promise((r) => setTimeout(r, 2000 * 2 ** attempt));
+    try {
+      const res = await fetch(base() + path, {
+        method: "POST",
+        headers: { ...auth(), "Content-Type": "application/json" },
+        body: payload,
+        signal: AbortSignal.timeout(240_000),
+      });
+      const text = await res.text();
+      if (res.ok) {
+        const json = JSON.parse(text);
+        usage.input += json.usage?.input_tokens ?? json.usage?.prompt_tokens ?? 0;
+        usage.output += json.usage?.output_tokens ?? json.usage?.completion_tokens ?? 0;
+        return json;
+      }
+      last = `Meta ${path} ${res.status}: ${text.slice(0, 300)}`;
+      if (res.status !== 429 && res.status < 500) break;
+    } catch (e) {
+      last = `Meta ${path}: ${e instanceof Error ? e.message : String(e)}`;
+    }
+  }
+  throw new Error(last);
 }
 
 export function dataUrl(path: string, mime: string): string {
@@ -46,7 +67,9 @@ export interface ChatMessage { role: "system" | "user" | "assistant" | "tool"; c
 
 export async function sparkChat(messages: ChatMessage[], tools?: unknown[]): Promise<{ message: ChatMessage; usage: any }> {
   const resp = await postJson("/chat/completions", { model: "muse-spark-1.3", messages, ...(tools ? { tools } : {}) });
-  return { message: resp.choices[0].message, usage: resp.usage };
+  const message = resp.choices?.[0]?.message;
+  if (!message) throw new Error("Meta chat returned no message");
+  return { message, usage: resp.usage };
 }
 
 /** SAM 3.1 on one image with a short descriptive phrase. Returns raw SAM text. */

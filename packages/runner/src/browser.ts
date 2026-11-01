@@ -7,14 +7,27 @@ export interface Shot { path: string; after: string; box: Box | null; width: num
 
 const W = 1280, H = 720;
 
+function allowed(url: string): boolean {
+  try {
+    const u = new URL(url);
+    if (u.protocol === "data:" || u.protocol === "blob:") return true;
+    return (u.protocol === "http:" || u.protocol === "https:") && !u.hostname.startsWith("169.254.") && u.hostname !== "metadata.google.internal";
+  } catch {
+    return false;
+  }
+}
+
 /** A real Chromium driven by description: SAM finds the element on today's screen, then we click it. */
 export class Browser {
   private n = 0;
   private constructor(private b: PwBrowser, private page: Page, private work: string) {}
 
   static async create(work: string): Promise<Browser> {
-    const b = await chromium.launch();
+    // Chromium gets no secrets: only what it needs to start.
+    const b = await chromium.launch({ env: { PATH: process.env.PATH ?? "", HOME: work } });
     const page = await b.newPage({ viewport: { width: W, height: H } });
+    // Web pages only: no local files, no cloud metadata service.
+    await page.route("**/*", (route) => (allowed(route.request().url()) ? route.continue() : route.abort()));
     return new Browser(b, page, work);
   }
 
@@ -30,6 +43,7 @@ export class Browser {
   }
 
   async open(url: string): Promise<Shot> {
+    if (!allowed(url)) return this.shot(null, "refused: Origin only opens public http and https web pages.");
     const res = await this.page.goto(url, { waitUntil: "domcontentloaded", timeout: 30_000 }).catch((e) => e as Error);
     await this.settle();
     const status = res instanceof Error ? `failed: ${res.message.split("\n")[0]}` : `HTTP ${res?.status() ?? "?"}`;

@@ -2,6 +2,7 @@ import Link from "next/link";
 import { listRuns, stepsByRun } from "@/lib/data";
 import { countVerdicts, runName, shortDate, statusLabel, VERDICTS } from "@/lib/format";
 import { Footer, Header } from "@/components/Chrome";
+import { KNOWN_MISSES, MISSES_URL } from "@/lib/misses";
 
 export const dynamic = "force-dynamic";
 export const metadata = { title: "Results | Origin" };
@@ -20,7 +21,7 @@ export default async function Results() {
       <main className="wrap section">
         <p className="eyebrow">05 Proof</p>
         <h1 className="h2">Every run, in the <em>open</em>.</h1>
-        <p className="lede">Each row is a real run. Open one to see its steps and the full terminal output.</p>
+        <p className="lede">Each row is a real run. Open one to see its steps and its terminal output. Runs are never edited: wrong verdicts found by hand are labelled here and listed with their fix in the <a href={MISSES_URL}>misses log</a>.</p>
 
         {error && <p className="msg-err">Could not load runs: {error}</p>}
         {!error && runs.length === 0 && <p className="empty">No runs yet.</p>}
@@ -42,7 +43,10 @@ export default async function Results() {
                   const total = Object.values(c).reduce((a, b) => a + b, 0);
                   return (
                     <tr key={r.id}>
-                      <td className="title"><Link href={`/run/${r.id}`}>{runName(r)}</Link></td>
+                      <td className="title">
+                        <Link href={`/run/${r.id}`}>{runName(r)}</Link>
+                        {KNOWN_MISSES[r.id] && <div className="miss">Known miss: {KNOWN_MISSES[r.id]}</div>}
+                      </td>
                       <td className="hide-sm mono">{r.kind ?? "unknown"}</td>
                       <td className="hide-sm mono">{shortDate(r.created_at)}</td>
                       <td>

@@ -9,12 +9,12 @@ import { Tape } from "@/components/Tape";
 export const dynamic = "force-dynamic";
 
 const FAQ: [string, string][] = [
-  ["What tutorials can it run?", "Code and terminal tutorials run in a sealed sandbox. Website tutorials run in a real browser. Blender tutorials run in today's Blender, and the finished model is compared with the video's. Tutorials that need your account hand you a live browser to log in yourself. Phone apps and hardware are out of scope, and Origin says so in seconds."],
-  ["Does it touch my accounts?", "Only if you log in yourself, in the live browser on your own run. Only the person who started a run can control it, what you type is never stored or logged, and Origin still stops before any step that would publish, pay, delete or send."],
-  ["Which models does it use?", "Muse Spark 1.3 watches the video and runs every step as an agent. Muse Voice Transcribe catches steps that are only spoken. SAM 3.1 outlines what was clicked, in the old video and on today's screen. Muse Spark Open picks the right element when several look alike."],
-  ["Is it free?", "Yes, during the hackathon. Every run uses real compute, so only a few runs go at once."],
-  ["What if it gets it wrong?", "Every run is public with its full output. You can open any step, read the terminal, and judge it yourself. The results page lists every run, misses included."],
-  ["How long does a run take?", "Most tutorials take 6 to 15 minutes: Muse Spark watches the video first, then each step runs in turn. The run page shows exactly where it is."],
+  ["What tutorials can it run?", "Code and terminal tutorials run in an isolated container that holds none of Origin's keys. Website tutorials run in a real browser. Blender tutorials run in today's Blender, and the finished model is compared with the video's. Tutorials that need your account hand you a live browser to log in yourself. Phone apps and hardware are out of scope, and the run page says so."],
+  ["Does it touch my accounts?", "Only if you log in yourself, in the live browser on your own run. Only the person who started a run can see that browser or control it. What you type is held only until the browser applies it, then deleted, and never logged. After you log in, no more screenshots are saved publicly. Origin is built to stop before steps that publish, pay, delete or send, and refuses commands that publish, deploy or push."],
+  ["Which models does it use?", "Muse Spark 1.3 watches the video and runs every step as an agent. Muse Voice Transcribe catches steps that are only spoken. SAM 3.1 outlines what was clicked, in the old video and on today's screen. Muse Spark Open picks the right element when several look alike. Muse Image draws the step cards for creators."],
+  ["Is it free?", "Yes, during the hackathon. Every run uses real compute, so only a few runs go at once and a few start each hour."],
+  ["What if it gets it wrong?", "Every run is public with its steps and terminal output. You can open any step and judge it yourself. Runs are never edited: wrong verdicts found by hand are labelled on the results page and logged with their fix."],
+  ["How long does a run take?", "Usually 10 to 25 minutes: Muse Spark watches the video first, then each step runs in turn. The run page shows exactly where it is."],
 ];
 
 export default async function Home() {
@@ -62,7 +62,7 @@ export default async function Home() {
               <ol className="steps4">
                 <li><b>Watch</b><span>Muse Spark reads the video and its narration. Muse Voice Transcribe catches steps that are only spoken.</span></li>
                 <li><b>Point</b><span>SAM 3.1 outlines what was clicked in the old video, then finds the same thing on today&apos;s screen.</span></li>
-                <li><b>Run</b><span>Every step runs for real: terminal steps in a sealed sandbox, website steps in a real browser, Blender steps in today&apos;s Blender. Each is marked works, changed or broken.</span></li>
+                <li><b>Run</b><span>Every step runs for real: terminal steps in an isolated container, website steps in a real browser, Blender steps in today&apos;s Blender. Each is marked works, changed or broken.</span></li>
                 <li><b>Repair</b><span>A fix is kept only if it runs. Otherwise the step stays broken.</span></li>
               </ol>
             </div>

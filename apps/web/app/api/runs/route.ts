@@ -1,12 +1,15 @@
 import { NextResponse } from "next/server";
 import { createHash, randomBytes, randomUUID } from "node:crypto";
 import { listRuns } from "@/lib/data";
-import { rest, write, signUpload, publicUrl } from "@/lib/supabase";
+import { rest, write, patch, signUpload, objectSize, signDownload, publicUrl } from "@/lib/supabase";
 import { youtubeId } from "@/lib/youtube";
 
 export const dynamic = "force-dynamic";
 
-const MAX_ACTIVE = 4;
+const MAX_ACTIVE = 3;
+// Every run spends real model credit, so the public site starts at most this many an hour.
+const MAX_PER_HOUR = 12;
+const MAX_UPLOAD = 50_000_000;
 const REUSE_DAYS = 7;
 
 export async function GET() {
@@ -56,6 +59,7 @@ async function dispatch(runId: string, videoUrl: string, sourceUrl: string) {
 export async function POST(req: Request) {
   let body: { url?: string; upload?: boolean; key?: string };
   try { body = await req.json(); } catch { return fail("send JSON", 400); }
+  if (!body || typeof body !== "object") return fail("send a JSON object", 400);
 
   try {
     if (body.upload) {
@@ -63,8 +67,15 @@ export async function POST(req: Request) {
       return NextResponse.json({ key, uploadUrl: await signUpload(key) });
     }
 
-    const active = await rest<{ id: string }>("runs", "select=id&status=in.(queued,extracting,running)");
+    // Runs whose machine never reported back are closed out, so they cannot block the site.
+    const stale = (min: number) => new Date(Date.now() - min * 60_000).toISOString();
+    await patch("runs", `status=eq.queued&created_at=lt.${stale(20)}`, { status: "failed", error: "This run never started. Try again." });
+    await patch("runs", `status=in.(extracting,running,waiting_user)&created_at=lt.${stale(70)}`, { status: "failed", error: "The run machine stopped before finishing." });
+
+    const active = await rest<{ id: string }>("runs", "select=id&status=in.(queued,extracting,running,waiting_user)");
     if (active.length >= MAX_ACTIVE) return fail(`${active.length} runs are going right now. Try again in a few minutes`, 429);
+    const lastHour = await rest<{ id: string }>("runs", `select=id&control_hash=not.is.null&created_at=gte.${stale(60)}`);
+    if (lastHour.length >= MAX_PER_HOUR) return fail("Origin has started its limit of runs for this hour. Open a finished run on the results page, or try again later", 429);
 
     if (body.url) {
       const vid = youtubeId(body.url);
@@ -80,15 +91,25 @@ export async function POST(req: Request) {
       return NextResponse.json({ id: run.id, control: c.token });
     }
 
-    if (body.key && /^inputs\/[0-9a-f-]{36}\.mp4$/.test(body.key)) {
+    if (typeof body.key === "string" && /^inputs\/[0-9a-f-]{36}\.mp4$/.test(body.key)) {
+      // Only start for a file that was really uploaded and fits the limit.
+      const size = await objectSize(body.key);
+      if (size === null) return fail("that upload was not found. Upload the MP4 again", 400);
+      if (size > MAX_UPLOAD) return fail("that file is over 50 MB", 400);
       const c = control();
       const run = await write<{ id: string }>("runs", { status: "queued", control_hash: c.hash });
-      await dispatch(run.id, publicUrl(body.key), "");
+      try {
+        await dispatch(run.id, await signDownload(body.key, 4 * 3600), "");
+      } catch (e) {
+        await patch("runs", `id=eq.${run.id}`, { status: "failed", error: "Origin could not start a run machine. Try again in a few minutes." });
+        throw e;
+      }
       return NextResponse.json({ id: run.id, control: c.token });
     }
 
     return fail("paste a YouTube link or upload an MP4", 400);
   } catch (e) {
-    return fail(String(e instanceof Error ? e.message : e), 502);
+    console.error(e);
+    return fail("Origin could not start this run right now. Try again in a few minutes", 502);
   }
 }

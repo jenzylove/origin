@@ -9,7 +9,7 @@ import { promisify } from "node:util";
 import { existsSync, mkdtempSync, rmSync, writeFileSync } from "node:fs";
 import { tmpdir } from "node:os";
 import { join } from "node:path";
-import { select, update, event, upload } from "./db.js";
+import { select, update, event, upload, uploadPrivate, signedUrl } from "./db.js";
 
 const REPO = process.env.GITHUB_REPO ?? "jenzylove/origin";
 const PYTHON = process.env.PYTHON ?? "python";
@@ -23,6 +23,15 @@ async function heartbeat(dir: string) {
 
 async function handle(run: { id: string; source_url: string; control_hash: string | null }) {
   claimed.add(run.id);
+  try {
+    await download(run);
+  } catch (e) {
+    console.error(`ingest ${run.id}: ${e}`);
+    await update("runs", `id=eq.${run.id}`, { status: "failed", error: "Origin could not start this run. Try again, or upload the MP4.", finished_at: new Date().toISOString() }).catch(() => {});
+  }
+}
+
+async function download(run: { id: string; source_url: string; control_hash: string | null }) {
   const dir = mkdtempSync(join(tmpdir(), "origin-ingest-"));
   const out = join(dir, "input.mp4");
   await event(run.id, "download_start", {});
@@ -36,7 +45,9 @@ async function handle(run: { id: string; source_url: string; control_hash: strin
     rmSync(dir, { recursive: true, force: true });
     return;
   }
-  const videoUrl = await upload(out, `inputs/${run.id}.mp4`, "video/mp4");
+  // The video stays private; the run machine gets a link that expires.
+  await uploadPrivate(out, `inputs/${run.id}.mp4`, "video/mp4");
+  const videoUrl = await signedUrl(`inputs/${run.id}.mp4`, 4 * 3600);
   await event(run.id, "download_done", {});
   execFileSync("gh", ["workflow", "run", "run.yml", "-R", REPO, "-f", `run_id=${run.id}`, "-f", `video_url=${videoUrl}`, "-f", `source_url=${run.source_url}`,
     // Runs started from the site have a control token and a person watching; batch runs do not.

@@ -18,6 +18,8 @@ jobs:
         with: { node-version: 22, cache: npm }
       - run: sudo apt-get update -qq && sudo apt-get install -y -qq ffmpeg && pipx install yt-dlp
       - run: npm ci --ignore-scripts && npm run build -w @origin/core && npm run build -w @origin/runner && npx -w @origin/runner playwright install --with-deps chromium-headless-shell
+      - name: Keep the sandbox away from the cloud metadata service
+        run: sudo iptables -I OUTPUT -d 169.254.169.254 -m owner --uid-owner 0 -j DROP
       - name: Run tutorial
         env:
           META_API_KEY: ${{ secrets.META_API_KEY }}
@@ -25,13 +27,15 @@ jobs:
           SUPABASE_SECRET_KEY: ${{ secrets.SUPABASE_SECRET_KEY }}
           BASETEN_API_KEY: ${{ secrets.BASETEN_API_KEY }}
           ORIGIN_UNATTENDED: ${{ inputs.unattended }}
-        run: node packages/runner/dist/main.js --run-id "${{ inputs.run_id }}" --video-url "${{ inputs.video_url }}" --source-url "${{ inputs.source_url }}"
+          RUN_ID: ${{ inputs.run_id }}
+          VIDEO_URL: ${{ inputs.video_url }}
+          SOURCE_URL: ${{ inputs.source_url }}
+        run: node packages/runner/dist/main.js --run-id "$RUN_ID" --video-url "$VIDEO_URL" --source-url "$SOURCE_URL"
       - name: Mark the run failed if the job died
         if: cancelled() || failure()
         env:
           SUPABASE_URL: ${{ secrets.SUPABASE_URL }}
           SUPABASE_SECRET_KEY: ${{ secrets.SUPABASE_SECRET_KEY }}
+          RUN_ID: ${{ inputs.run_id }}
         run: |
-          curl -s -X PATCH "$SUPABASE_URL/rest/v1/runs?id=eq.${{ inputs.run_id }}&status=in.(queued,extracting,running)" \
-            -H "apikey: $SUPABASE_SECRET_KEY" -H "Authorization: Bearer $SUPABASE_SECRET_KEY" -H "Content-Type: application/json" \
-            -d "{\"status\":\"failed\",\"error\":\"The run machine stopped before finishing (job ${{ job.status }}).\",\"finished_at\":\"$(date -u +%FT%TZ)\"}"
+          curl -s -X PATCH "$SUPABASE_URL/rest/v1/runs?id=eq.$RUN_ID&status=in.(queued,extracting,running,waiting_user)"             -H "apikey: $SUPABASE_SECRET_KEY" -H "Authorization: Bearer $SUPABASE_SECRET_KEY" -H "Content-Type: application/json"             -d "{\"status\":\"failed\",\"error\":\"The run machine stopped before finishing.\",\"finished_at\":\"$(date -u +%FT%TZ)\"}"

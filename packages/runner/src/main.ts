@@ -4,9 +4,9 @@ import { execFileSync } from "node:child_process";
 import { tmpdir } from "node:os";
 import { join } from "node:path";
 import { parseArgs } from "node:util";
-import { insert, update, select, event, upload } from "./db.js";
+import { insert, update, event, upload, removePrivate } from "./db.js";
 import { extract } from "./extract.js";
-import { sparkCompare } from "./meta.js";
+import { sparkCompare, usage } from "./meta.js";
 import { makeCards, type CardStep } from "./cards.js";
 import { duration, frameAt } from "./media.js";
 import { runSteps } from "./agent.js";
@@ -21,12 +21,35 @@ const { values: args } = parseArgs({ options: {
   sandbox: { type: "string", default: "docker" },
 } });
 
+const MAX_VIDEO_BYTES = 200_000_000;
+
 async function fetchVideo(url: string, work: string): Promise<string> {
-  const res = await fetch(url);
-  if (!res.ok) throw new Error(`Video download ${res.status}`);
+  const res = await fetch(url, { signal: AbortSignal.timeout(300_000) });
+  if (!res.ok) throw new Friendly("Origin could not fetch the video. Try again, or upload the MP4.", `Video download ${res.status}`);
+  if (Number(res.headers.get("content-length") ?? 0) > MAX_VIDEO_BYTES) throw new Friendly("This video file is too large.", "too large");
   const path = join(work, "input.mp4");
   writeFileSync(path, Buffer.from(await res.arrayBuffer()));
   return path;
+}
+
+/** An error with a message fit for the public run page; the raw cause goes to the log only. */
+class Friendly extends Error {
+  constructor(public readonly friendly: string, cause: string) { super(cause); }
+}
+
+function friendlyError(e: unknown): string {
+  if (e instanceof Friendly) return e.friendly;
+  const raw = String(e);
+  if (/payload_too_large|413/.test(raw)) return "This video is too large for Origin to watch. Try a shorter clip or a smaller MP4.";
+  if (/Meta .*(429|5\d\d)|timeout|aborted/i.test(raw)) return "Meta's model service did not answer in time. Try this run again in a few minutes.";
+  if (/Unexpected token|JSON/.test(raw)) return "Origin could not read the steps from this video. Try again, or try another tutorial.";
+  return "Origin hit an error and stopped this run. The steps checked so far are kept.";
+}
+
+// The private video this run used, so it can be deleted when the run ends.
+function privateKey(url: string | undefined): string | null {
+  const m = url ? /\/object\/sign\/private\/([^?]+)/.exec(url) : null;
+  return m ? decodeURIComponent(m[1]!) : null;
 }
 
 function fetchYouTube(url: string, work: string): string {
@@ -34,7 +57,7 @@ function fetchYouTube(url: string, work: string): string {
   try {
     execFileSync("yt-dlp", ["-q", "--no-playlist", "-S", "res:480,ext:mp4", "--merge-output-format", "mp4", "--match-filter", "duration<=2400", "-o", out, url], { stdio: "inherit" });
   } catch { /* reported below */ }
-  if (!existsSync(out)) throw new Error("This video is longer than 40 minutes, or YouTube refused the download. Upload the MP4 instead.");
+  if (!existsSync(out)) throw new Friendly("This video is longer than 40 minutes, or YouTube refused the download. Upload the MP4 instead.", "yt-dlp failed");
   return out;
 }
 
@@ -50,7 +73,7 @@ async function main() {
     const video = args.video
       ?? (args["video-url"] ? await fetchVideo(args["video-url"], work) : null)
       ?? (/youtu\.?be/.test(source) ? fetchYouTube(source, work) : null);
-    if (!video) throw new Error("No video given");
+    if (!video) throw new Friendly("No video was given.", "no video");
 
     await update("runs", `id=eq.${runId}`, { status: "extracting" });
     await emit("extract_start", {});
@@ -69,8 +92,8 @@ async function main() {
     await update("runs", `id=eq.${runId}`, { title: ex.title, kind: ex.kind, status: "running" });
 
     if (ex.kind === "unsupported") {
-      // Other runners land in later phases; say so instead of pretending.
-      await update("runs", `id=eq.${runId}`, { status: "failed", error: `The ${ex.kind} runner is not live yet. ${ex.why}`, finished_at: new Date().toISOString() });
+      // Phone apps, hardware and anything else Origin cannot run: say so plainly.
+      await update("runs", `id=eq.${runId}`, { status: "failed", error: `Origin cannot run this tutorial. ${ex.why}`.trim(), finished_at: new Date().toISOString() });
       return;
     }
 
@@ -108,17 +131,19 @@ async function main() {
     }
     // Creator cards for every step that changed or broke (Muse Image).
     const cards = await makeCards(runId, graded, work).catch(() => ({}));
-    await update("runs", `id=eq.${runId}`, { status: "done", summary: { counts, usage: ex.usage, final, cards }, finished_at: new Date().toISOString() });
+    await update("runs", `id=eq.${runId}`, { status: "done", summary: { counts, usage: ex.usage, tokens: { ...usage }, final, cards }, finished_at: new Date().toISOString() });
     await emit("run_done", { counts });
   } catch (e) {
     console.error(e);
-    await update("runs", `id=eq.${runId}`, { status: "failed", error: String(e).slice(0, 500), finished_at: new Date().toISOString() });
-    await emit("run_failed", { error: String(e).slice(0, 500) });
+    await update("runs", `id=eq.${runId}`, { status: "failed", error: friendlyError(e), summary: { tokens: { ...usage } }, finished_at: new Date().toISOString() }).catch(() => {});
+    await emit("run_failed", { error: friendlyError(e) }).catch(() => {});
     process.exitCode = 1;
   } finally {
     await sb?.close();
+    // The tutorial video is never kept: only frames and results stay.
+    const key = privateKey(args["video-url"]);
+    if (key) await removePrivate([key]);
   }
 }
 
-void select; // used by later phases (resume, replay)
-main();
+main().catch((e) => { console.error(e); process.exitCode = 1; });

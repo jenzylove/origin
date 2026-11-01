@@ -1,7 +1,7 @@
 import { readFileSync } from "node:fs";
 import { describe, expect, it } from "vitest";
 import {
-  boxToPercent, gradeCommand, isGatedStep, parseSamOutput, parseSparkSteps, parseTimestamp, youtubeId,
+  boxToPercent, gradeCommand, isGatedCommand, isGatedStep, parseSamOutput, parseSparkSteps, parseTimestamp, youtubeId,
 } from "../src/index.js";
 
 const fx = (n: string) => readFileSync(new URL(`./fixtures/${n}`, import.meta.url), "utf8");
@@ -134,6 +134,10 @@ describe("isGatedStep", () => {
     "Remove the repository permanently",
     "Submit the form to the vendor",
     "Subscribe to the Pro plan",
+    "Click Authorize app",
+    "Revoke the old token",
+    "Confirm the purchase",
+    "Grant access to your repositories",
   ];
   const notGated = [
     "npm publish --dry-run",
@@ -148,12 +152,23 @@ describe("isGatedStep", () => {
     "Add a post-install script",
     "Subscribe to the RSS feed in your reader",
     "Check the payload in the console",
+    "curl -X POST localhost:3000/api/todos",
+    "Write your first blog post in markdown",
+    "Send a request to the API",
+    "Handle the POST request in Express",
   ];
   it.each(gated)("gates: %s", (detail) => expect(isGatedStep({ detail })).toBe(true));
   it.each(notGated)("allows: %s", (detail) => expect(isGatedStep({ detail })).toBe(false));
   it("checks target too", () => {
     expect(isGatedStep({ detail: "Click the button", target: "red Delete account button" })).toBe(true);
   });
+});
+
+describe("isGatedCommand", () => {
+  const gated = ["npm publish", "yarn publish --access public", "git push origin main", "vercel --prod", "netlify deploy --prod", "firebase deploy", "gh release create v1.0.0", "twine upload dist/*", "curl -X POST https://api.example.com/charge"];
+  const allowed = ["npm publish --dry-run", "npm install", "git commit -m init", "npm run build", "curl -X POST http://localhost:3000/api", "curl https://nodejs.org/dist/index.json", "npx vercel --version"];
+  it.each(gated)("gates: %s", (c) => expect(isGatedCommand(c)).toBe(true));
+  it.each(allowed)("allows: %s", (c) => expect(isGatedCommand(c)).toBe(false));
 });
 
 describe("youtubeId", () => {

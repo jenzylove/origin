@@ -22,7 +22,7 @@ Worse, many old steps still print **Success** while teaching something retired. 
 
 1. **Watches the video.** Muse Spark 1.3 reads the whole tutorial, frames and narration, and writes down every step with its timestamp. Muse Voice Transcribe catches steps that are only spoken ("you need at least Node 14").
 2. **Points at what was clicked.** SAM 3.1 outlines the exact button or menu in the old video, then finds the same thing on today's screen.
-3. **Runs every step for real.** Terminal steps run in a sealed container. Website steps run in a real browser. Blender steps run in the newest official Blender. Steps that need your account hand you a live browser to log in yourself.
+3. **Runs every step for real.** Terminal steps run in an isolated container that holds none of Origin's keys. Website steps run in a real browser. Blender steps run in the newest official Blender. Steps that need your account hand you a live browser to log in yourself.
 4. **Grades and repairs.** Each step is marked works, changed (runs but is deprecated or no longer the way) or broken. A fix is kept only if Origin actually ran it and it passed.
 
 ### Then and now
@@ -49,7 +49,7 @@ A page per video: where it breaks, a comment to pin with the fix and a link to t
 2. Click a tick on the tape at the top: the video jumps to that moment and the step opens.
 3. Open a changed step: read the reason, the command that ran, and **Today's way**. The terminal on the right is the real output.
 4. Open **For the creator** on a run with changed steps.
-5. Try your own: paste a YouTube link of a short coding tutorial, or upload an MP4 (under 50 MB). A run takes 6 to 15 minutes and streams live.
+5. Try your own: paste a YouTube link of a short coding tutorial, or upload an MP4 (under 50 MB). A run usually takes 10 to 25 minutes and streams live.
 
 ## Meta models, each with a real job
 
@@ -88,8 +88,8 @@ Each run is one GitHub Actions job: a fresh Linux machine, a Docker container fo
 | Video understanding, step extraction | Live, Muse Spark 1.3 on the Meta Model API |
 | Terminal, browser and Blender runners | Live, every run is a real execution |
 | Then and now outlines | Live, SAM 3.1 on the old frame and today's screenshot |
-| Live login hand over | Live. Only the person who started a run can control it; what they type is applied and deleted, never stored or logged |
-| Stops before publish, pay, delete, send | Live, those steps are marked gated |
+| Live login hand over | Live. Only the person who started a run can control it; what they type is held only until the browser applies it, then deleted, and never logged |
+| Stops before publish, pay, delete, send | Live: steps and commands that publish, pay, delete, send, deploy or push are stopped and marked gated |
 | Results and misses | Public: [results page](https://origin-two-zeta.vercel.app/results), [misses and fixes](docs/benchmark/MISSES.md) |
 
 ## Safety

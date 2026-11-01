@@ -7,8 +7,11 @@ const sans = Inter_Tight({ subsets: ["latin"], variable: "--font-sans" });
 const mono = JetBrains_Mono({ subsets: ["latin"], variable: "--font-mono" });
 
 export const metadata: Metadata = {
-  title: "Origin",
-  description: "Paste a tutorial video. Origin runs every step on today's software and shows where it breaks.",
+  metadataBase: new URL("https://origin-two-zeta.vercel.app"),
+  title: { default: "Origin: tutorials age, Origin runs them today", template: "%s | Origin" },
+  description: "Paste a tutorial video. Origin runs every step on today's software, shows where it breaks, and gives you the version that works now.",
+  openGraph: { images: ["/og.png"], siteName: "Origin" },
+  twitter: { card: "summary_large_image", images: ["/og.png"] },
 };
 
 export const viewport: Viewport = { width: "device-width", initialScale: 1 };

@@ -238,3 +238,4 @@ table.results { width: 100%; border-collapse: collapse; font-size: 15px; }
 .card { margin: 10px 0 0; }
 .card img { width: 100%; max-width: 820px; height: auto; display: block; }
 .card figcaption { color: var(--dim); font-size: 13px; margin-top: 8px; }
+.miss { font-family: var(--sans, inherit); font-size: 13px; color: var(--changed); margin-top: 4px; line-height: 1.4; }

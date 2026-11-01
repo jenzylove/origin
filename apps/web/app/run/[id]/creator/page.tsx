@@ -19,6 +19,10 @@ export default async function CreatorPage({ params }: { params: Promise<{ id: st
   const cards = (run.summary as { cards?: Record<string, string> } | null)?.cards ?? {};
   const first = steps[0];
   const checked = run.finished_at ? shortDate(run.finished_at) : "";
+  const all = await getSteps(id);
+  const ranCount = all.filter((s) => s.verdict === "works" || s.verdict === "changed" || s.verdict === "broken").length;
+  const failed = run.status === "failed";
+  const done = run.status === "done";
 
   return (
     <>
@@ -28,11 +32,13 @@ export default async function CreatorPage({ params }: { params: Promise<{ id: st
         {first ? (
           <h1 className="h2">Your video {first.verdict === "broken" ? "breaks" : "changes"} at <em>{first.t_label}</em>.</h1>
         ) : (
-          <h1 className="h2">{run.status === "done" ? <>Every step still <em>works</em>.</> : "This run has not finished yet."}</h1>
+          <h1 className="h2">{failed ? "This run did not finish." : done ? <>No checked step <em>changed</em>.</> : "This run has not finished yet."}</h1>
         )}
         <p className="lede">
-          Origin ran every step of this tutorial on today&apos;s software{checked ? ` on ${checked}` : ""}.{" "}
-          {steps.length ? `${steps.length} step${steps.length > 1 ? "s" : ""} need a note for your viewers.` : ""}{" "}
+          {failed
+            ? "Origin could not finish checking this tutorial, so there is nothing to tell your viewers yet."
+            : `Origin checked ${ranCount} of ${all.length} steps on today's software${checked ? ` on ${checked}` : ""}.`}{" "}
+          {steps.length ? `${steps.length} ${steps.length > 1 ? "steps need" : "step needs"} a note for your viewers.` : ""}{" "}
           <a href={`/run/${id}`}>See the full run</a>.
         </p>
 

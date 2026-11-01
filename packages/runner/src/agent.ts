@@ -1,6 +1,6 @@
-import { gradeCommand, isGatedStep, type Step, type Verdict } from "@origin/core";
+import { gradeCommand, isGatedCommand, isGatedStep, type Step, type Verdict } from "@origin/core";
 import { sparkChat, type ChatMessage } from "./meta.js";
-import { dataUrl } from "./meta.js";
+import { dataUrl, usage } from "./meta.js";
 import type { Sandbox, ExecResult } from "./sandbox.js";
 import type { Browser, Shot } from "./browser.js";
 import { Blender } from "./blender.js";
@@ -82,6 +82,9 @@ Never publish, post, pay, delete accounts, or send anything. Be fast: use few co
 
 const LONG_RUNNING = /\b(npm|pnpm|yarn|bun)\s+(run\s+)?(start|dev|serve|watch|preview)\b|^\s*(npx\s+)?(vite|nodemon|http-server|live-server|next\s+dev)(\s|$)|--watch\b/;
 const STEP_BUDGET_MS = 6 * 60_000;
+// Spending cap per run: about $5 of Spark input at today's price.
+const RUN_TOKEN_CAP = 4_000_000;
+const VERDICTS = new Set(["works", "changed", "broken", "skipped"]);
 const RUN_BUDGET_MS = 40 * 60_000;
 
 interface Graded { verdict: string; reason: string; replacement_command?: string }
@@ -94,6 +97,8 @@ export async function runSteps(
   const messages: ChatMessage[] = [{ role: "system", content: SYSTEM }, { role: "user", content: context }];
   let browser: Browser | null = null;
   let blender: Blender | null = null;
+  // After the user logs in, today's screens show their account: nothing more is saved publicly.
+  let loggedIn = false;
 
   // Only the latest screenshot stays in the conversation; older ones are dropped to save context.
   const showScreen = (shot: Shot) => {
@@ -112,6 +117,10 @@ export async function runSteps(
       await onResult(step, { verdict: "skipped", reasons: ["Origin ran out of time for this run before reaching this step."], output: "", execs: [] });
       continue;
     }
+    if (usage.input > RUN_TOKEN_CAP) {
+      await onResult(step, { verdict: "skipped", reasons: ["Origin reached its spending limit for this run before reaching this step."], output: "", execs: [] });
+      continue;
+    }
     if (isGatedStep(step)) {
       await onResult(step, { verdict: "gated", reasons: ["This step publishes, pays, deletes or sends. Origin stops here for you."], output: "", execs: [] });
       continue;
@@ -125,6 +134,7 @@ export async function runSteps(
     const reasonsExtra: string[] = [];
 
     const stepStart = Date.now();
+    try {
     for (let turn = 0; turn < 14 && !graded; turn++) {
       if (Date.now() - stepStart > STEP_BUDGET_MS && turn < 11) turn = 11;
       if (turn === 11) messages.push({ role: "user", content: "You are nearly out of time for this step. Call grade_step now with what you have seen." });
@@ -136,7 +146,16 @@ export async function runSteps(
         continue;
       }
       for (const call of message.tool_calls) {
-        const args = JSON.parse(call.function.arguments || "{}");
+        let args: any;
+        try { args = JSON.parse(call.function.arguments || "{}"); } catch {
+          messages.push({ role: "tool", tool_call_id: call.id, content: "error: the tool arguments were not valid JSON. Try again." });
+          continue;
+        }
+        if (call.function.name === "exec" && isGatedCommand(String(args.command ?? ""))) {
+          await emit("exec_start", { index: step.index, command: `${args.command} (stopped: publishes, deploys or pushes outside the sandbox)` });
+          messages.push({ role: "tool", tool_call_id: call.id, content: "refused: this command publishes, deploys or pushes outside the sandbox. Origin never runs it. Grade the step from what you know and say it was stopped." });
+          continue;
+        }
         if (call.function.name === "exec") {
           await emit("exec_start", { index: step.index, command: args.command });
           // Servers and watchers never exit; run them in the background whatever was asked.
@@ -185,14 +204,18 @@ export async function runSteps(
           browser ??= await openBrowser();
           await emit("browse", { index: step.index, tool: "request_login", what: args.site });
           const outcome = runId && process.env.ORIGIN_UNATTENDED !== "1" ? await handOver(runId, browser, work, String(args.site ?? "")) : "timeout";
+          if (outcome === "done") loggedIn = true;
           const shot = await browser.snapshot(outcome === "done" ? "The user says they are logged in" : "Nobody logged in within 10 minutes");
           messages.push({ role: "tool", tool_call_id: call.id, content: outcome === "done" ? "The user logged in. Continue the step from the screenshot." : "Nobody logged in. Grade this step skipped with the reason: needs your account." });
           showScreen(shot);
         } else if (call.function.name === "grade_step") {
           const rep = typeof args.replacement_command === "string" ? args.replacement_command.trim() : "";
           let note = "recorded";
-          if (rep && !execs.some((e) => e.result.exitCode === 0 && e.command.includes(rep))) {
+          const ran = (c: string) => c.trim() === rep || (rep.length >= 8 && c.includes(rep));
+          if (rep && !execs.some((e) => e.result.exitCode === 0 && ran(e.command))) {
             note = "rejected: replacement_command was not run successfully with exec in this step. Run it first.";
+          } else if (!VERDICTS.has(args.verdict) || typeof args.reason !== "string") {
+            note = "rejected: verdict must be works, changed, broken or skipped, with a reason.";
           } else graded = args;
           messages.push({ role: "tool", tool_call_id: call.id, content: note });
         } else {
@@ -201,18 +224,28 @@ export async function runSteps(
       }
     }
 
+    } catch (e) {
+      // One step failing never ends the run.
+      console.warn(`step ${step.index + 1}: ${e}`);
+      await emit("step_error", { index: step.index, error: String(e).slice(0, 300) });
+      graded = null;
+      reasonsExtra.push("Origin hit an error while checking this step, so it could not finish it.");
+    }
+
     // Then vs now: for a click step, look for the tutorial's element on today's page ourselves.
-    if (step.action === "click" && step.target && browser && !now?.box) {
+    if (step.action === "click" && step.target && browser && !now?.box && !loggedIn) {
       try { now = await browser.locate(step.target, step.detail); } catch (e) { console.warn(`locate: ${e}`); }
       if (now && !now.box) reasonsExtra.push(now.note);
     }
 
     // A second, rule based opinion on the step's own command; the worse verdict wins.
+    if (loggedIn) now = undefined;
     const own = execs.findLast((e) => e.command.includes(step.detail.trim())) ?? execs[0];
     const rule = own ? gradeCommand({ command: own.command, exitCode: own.result.exitCode, stdout: own.result.stdout, stderr: own.result.stderr }) : null;
     const g = graded as Graded | null;
-    let verdict = (g?.verdict ?? "broken") as Verdict;
-    const reasons = [g?.reason ?? "Origin could not finish checking this step."];
+    // A step Origin could not finish is skipped, not broken: it is not a claim about the tutorial.
+    let verdict = (g?.verdict ?? "skipped") as Verdict;
+    const reasons = g ? [g.reason] : reasonsExtra.length ? [] : ["Origin could not finish checking this step."];
     // The rule check only catches deprecations Spark let through; exit codes are Spark's call in context.
     if (rule?.verdict === "changed" && verdict === "works") verdict = "changed";
     if (rule) reasons.push(...rule.reasons.map((r) => `Output check: ${r}`));

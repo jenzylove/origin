@@ -16,7 +16,8 @@ export async function POST(req: Request, { params }: { params: Promise<{ id: str
   if (!/^[0-9a-f-]{36}$/.test(id)) return NextResponse.json({ error: "bad run" }, { status: 400 });
   let body: { control?: string; kind?: string; payload?: Record<string, unknown> };
   try { body = await req.json(); } catch { return NextResponse.json({ error: "send JSON" }, { status: 400 }); }
-  if (!body.control || !body.kind || !KINDS.has(body.kind)) return NextResponse.json({ error: "bad input" }, { status: 400 });
+  if (!body || typeof body.control !== "string" || typeof body.kind !== "string" || !KINDS.has(body.kind)) return NextResponse.json({ error: "bad input" }, { status: 400 });
+  try {
 
   const [run] = await rest<{ status: string; control_hash: string | null }>("runs", `select=status,control_hash&id=eq.${id}`);
   if (!run?.control_hash) return NextResponse.json({ error: "this run has no live browser" }, { status: 403 });
@@ -34,4 +35,7 @@ export async function POST(req: Request, { params }: { params: Promise<{ id: str
     : {};
   await write("inputs", { run_id: id, kind: body.kind, payload });
   return NextResponse.json({ ok: true });
+  } catch {
+    return NextResponse.json({ error: "That did not reach the browser. Try again." }, { status: 503 });
+  }
 }

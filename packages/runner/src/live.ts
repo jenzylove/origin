@@ -1,12 +1,12 @@
 import { join } from "node:path";
-import { select, update, upload, remove, event } from "./db.js";
+import { select, update, uploadPrivate, removePrivate, remove, event } from "./db.js";
 import type { Browser } from "./browser.js";
 
 const ALLOWED_KEYS = new Set(["Enter", "Tab", "Backspace", "Escape", "ArrowUp", "ArrowDown", "ArrowLeft", "ArrowRight", "Delete"]);
 
 /**
  * Hand the browser to the person who started the run so they can log in themselves.
- * Frames go to storage about twice a second; their clicks and keys arrive in the private
+ * Frames go to private storage about twice a second, readable only through the starter's token; their clicks and keys arrive in the private
  * inputs table and each row is deleted once applied. Typed text is never logged.
  */
 export async function handOver(runId: string, browser: Browser, work: string, site: string, timeoutMs = 10 * 60_000): Promise<"done" | "timeout"> {
@@ -18,7 +18,7 @@ export async function handOver(runId: string, browser: Browser, work: string, si
   try {
     while (Date.now() - start < timeoutMs) {
       await browser.liveFrame(frame);
-      await upload(frame, `${runId}/live.jpg`, "image/jpeg");
+      await uploadPrivate(frame, `live/${runId}.jpg`, "image/jpeg");
       const inputs: Array<{ id: number; kind: string; payload: any }> = await select("inputs", `select=id,kind,payload&run_id=eq.${runId}&order=id`);
       for (const i of inputs) {
         if (i.kind === "click") await browser.clickAt(Number(i.payload.x), Number(i.payload.y));
@@ -33,6 +33,7 @@ export async function handOver(runId: string, browser: Browser, work: string, si
     }
   } finally {
     await remove("inputs", `run_id=eq.${runId}`).catch(() => {});
+    await removePrivate([`live/${runId}.jpg`]);
     await update("runs", `id=eq.${runId}`, { status: "running" });
     await event(runId, "login_finished", { outcome });
   }

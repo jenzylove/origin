@@ -1,5 +1,14 @@
 {
   "name": "origin",
   "private": true,
-  "workspaces": ["packages/*", "apps/*"]
+  "workspaces": [
+    "packages/*",
+    "apps/*"
+  ],
+  "scripts": {
+    "build": "npm run build -w @origin/core && npm run build -w @origin/runner && npm run build -w web",
+    "test": "npm test -w @origin/core",
+    "ingest": "node packages/runner/dist/ingest.js",
+    "bench": "node scripts/bench.mjs"
+  }
 }
