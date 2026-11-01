@@ -13,7 +13,9 @@ export default async function CreatorPage({ params }: { params: Promise<{ id: st
   const { id } = await params;
   const run = await getRun(id);
   if (!run) notFound();
-  const steps = (await getSteps(id)).filter((s) => s.verdict === "changed" || s.verdict === "broken");
+  // Steps Origin could not finish checking are not claims, so they get no note for viewers.
+  const steps = (await getSteps(id)).filter((s) => (s.verdict === "changed" || s.verdict === "broken")
+    && !(s.reasons?.[0] ?? "").startsWith("Origin could not"));
   const cards = (run.summary as { cards?: Record<string, string> } | null)?.cards ?? {};
   const first = steps[0];
   const checked = run.finished_at ? shortDate(run.finished_at) : "";

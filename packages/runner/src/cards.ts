@@ -27,7 +27,12 @@ Bottom small text: 'Checked ${checked} on today's software'. Exact text only, no
 export async function makeCards(runId: string, steps: CardStep[], work: string): Promise<Record<number, string>> {
   const checked = new Date().toLocaleDateString("en-US", { month: "short", day: "numeric", year: "numeric", timeZone: "UTC" });
   const out: Record<number, string> = {};
-  for (const s of steps.filter((x) => x.verdict === "changed" || x.verdict === "broken").slice(0, 8)) {
+  // A card only reads well for a one line step with a clear verdict; code blocks get the comment alone.
+  const oneLine = (t?: string) => !t || (!t.includes("
+") && t.length <= 100);
+  const fit = steps.filter((x) => (x.verdict === "changed" || x.verdict === "broken")
+    && oneLine(x.detail) && oneLine(x.replacement) && !x.reason.startsWith("Origin could not"));
+  for (const s of fit.slice(0, 8)) {
     try {
       const path = join(work, `card_${s.index}.png`);
       writeFileSync(path, await museImage(prompt(s, checked)));
