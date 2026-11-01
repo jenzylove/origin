@@ -19,6 +19,17 @@ export async function GET() {
 
 const fail = (error: string, status: number) => NextResponse.json({ error }, { status });
 
+async function ingestOnline(): Promise<boolean> {
+  try {
+    const res = await fetch(publicUrl("status/ingest.json"), { cache: "no-store" });
+    if (!res.ok) return false;
+    const { seen_at } = (await res.json()) as { seen_at: string };
+    return Date.now() - new Date(seen_at).getTime() < 90_000;
+  } catch {
+    return false;
+  }
+}
+
 async function dispatch(runId: string, videoUrl: string, sourceUrl: string) {
   const token = process.env.GITHUB_DISPATCH_TOKEN;
   const repo = process.env.GITHUB_REPO ?? "jenzylove/origin";
@@ -56,8 +67,9 @@ export async function POST(req: Request) {
       const [recent] = await rest<{ id: string }>("runs", `select=id&video_id=eq.${vid}&status=in.(queued,extracting,running,done)&created_at=gte.${since}&order=created_at.desc&limit=1`);
       if (recent) return NextResponse.json({ id: recent.id, reused: true });
       const source = `https://www.youtube.com/watch?v=${vid}`;
+      if (!(await ingestOnline())) return fail("the YouTube downloader is offline right now. Upload the MP4 instead", 503);
+      // The ingest worker downloads it on a home connection and starts the cloud run.
       const run = await write<{ id: string }>("runs", { video_id: vid, source_url: source, status: "queued" });
-      await dispatch(run.id, "", source);
       return NextResponse.json({ id: run.id });
     }
 
