@@ -2,8 +2,8 @@
 
 **Hackathon:** Meta Global AI Developer Hackathon (Meta + Cerebral Valley)
 **Track:** Indie Developer · **Theme:** Push the Frontier (software)
-**Build window:** Oct 26 to Nov 4, 2026 · **Submission deadline:** Nov 4, 2026, 9:00 PM ET (Nov 5, 01:00 UTC)
-**Status:** Draft, before the build starts. Official rules are due before Oct 26; this PRD is corrected against them the day they publish.
+**Build window:** Oct 26 to Nov 4, 2026 · **Submission deadline:** Nov 4, 2026, 9:00 PM ET (Nov 5, 02:00 UTC)
+**Status:** Accepted into the hackathon. Corrected against the published rules on Nov 1, 2026. All code is written in the event window.
 
 ---
 
@@ -18,7 +18,7 @@ People learn software from video, and software changes every few months. A tutor
 Evidence:
 
 - **Even well-maintained docs drift.** A 2026 ACM TOSEM study (DOSUD) found outdated screenshots in the official VS Code docs and on 50 Android app sites. The VS Code team confirmed and fixed every one.
-- **Popular starting points get retired.** Create React App was the default first command in thousands of React tutorials. The React team deprecated it in February 2025, so every tutorial that starts with it now fails at step one.
+- **Popular starting points get retired, and still look like they work.** Create React App was the default first command in thousands of React tutorials. The React team deprecated it in February 2025. Run today (Origin spike, Nov 1 2026), it prints "create-react-app is deprecated" and seven deprecated package warnings, then reports "Success!". The learner is taught a retired tool and is never told.
 - **Existing tools only cover docs a company owns.** Doc Detective tests written docs from hand-written scripts. Trupeer regenerates a company's own guides after it re-records them. Nothing checks the public tutorials people actually learn from.
 - **Search and chat can't settle it.** Google finds the video but can't tell you whether it still works. A chatbot answers from old training data and never runs the steps.
 
@@ -36,8 +36,9 @@ The first ten seconds: one box. Paste a tutorial link (YouTube or an uploaded vi
 
 1. Within 10 seconds Origin says what kind of tutorial it is (code, website, Blender, account-based) and what it will run.
 2. A live panel opens next to the video: the terminal, browser or Blender render the agent is driving. Every action is real and visible.
-3. Each step lights up as it runs: ✅ still works, ⚠️ changed (with the new way), ❌ removed (with the closest working replacement).
+3. Each step lights up as it runs: ✅ still works, ⚠️ changed (it runs but is deprecated or no longer the current way, with the new way), ❌ removed (with the closest working replacement). Origin reads warnings and screen changes, not only exit codes.
 4. The result is a fixed guide: every step that works today, with fresh screenshots or output, and a link to the exact moment in the video each step came from.
+5. **Then vs now:** for every visual step, the old video frame with SAM 3.1 outlining what the narrator clicked, beside today's screen with the matching element outlined, or marked as moved or gone.
 
 Judges can paste a tutorial of their own choosing. Preloaded examples cover each tutorial type for a one-click try.
 
@@ -82,16 +83,16 @@ Nothing cut yet. If a spike (section 10) fails, the cut is listed here with the 
 
 ## 7. How each judging criterion is met
 
-Indie track criteria, as published: creativity, technical ambition, does it work. No weights are published.
+Stage 1 (pass/fail): fits a problem statement (Push the Frontier, software) and uses the Meta Model API. Stage 2, scored 0 to 10:
 
-| Criterion | How Origin meets it |
-|---|---|
-| Creativity | It treats every public tutorial as something you can test and repair. No shipped product does this. |
-| Technical ambition | Video understanding, speech, object tracking and a live agent across four kinds of runner, in one loop. |
-| Does it work | The judge brings the tutorial. The run is live and visible. The results page shows every miss. |
-| Meta models | Four Meta models, each with a job the others can't do. Spark 1.3 runs the whole loop. |
+| Criterion | Weight | How Origin meets it |
+|---|---|---|
+| Impact | 30% | Every learner who hits "it broke at step 4" gets a working version, and every creator learns which videos broke and where. One run serves every later viewer of that video. |
+| Use of Meta AI tooling | 25% | Four Meta models, each with a job the others can't do. Spark 1.3 runs the whole agent loop; SAM 3.1 makes then vs now visible on every step. |
+| Technical depth and execution | 20% | Video understanding, speech, segmentation and a live agent across four kinds of runner, in one loop, deployed. |
+| Demo | 25% | The judge brings the tutorial. The run is live and visible. The results page shows every miss. |
 
-Application review (before the event) scores idea clarity, feasibility, theme fit and technical skill. Theme fit: Push the Frontier, software.
+Stage 3: top 5 per track judged live. Bonus prizes in reach: Best Agentic Use Case, Best Creative Build (Muse Image), Most Viral.
 
 ## 8. Claims and how each is proven
 
@@ -127,13 +128,20 @@ No number appears in the product or the submission unless it is read live or sou
 
 Ticked only from the live app, never from intent. Becomes `docs/SUBMISSION_CHECKLIST.md`.
 
-- [ ] Application submitted before Oct 25, 11:59 PM ET
-- [ ] Official rules read and this PRD corrected against them
-- [ ] Uses Meta Model API models (Muse Spark 1.3, SAM 3.1, Muse Voice Transcribe, Muse Image)
-- [ ] Project fits the Push the Frontier theme
-- [ ] Entered in the Indie Developer track
-- [ ] All submission fields filled (to be listed when the rules publish)
-- [ ] Submitted before Nov 4, 9:00 PM ET
+- [x] Application submitted and accepted
+- [x] Official rules read and this PRD corrected against them (Nov 1)
+- [ ] Meta API credit claim form submitted before Nov 4, 9:00 PM ET
+- [ ] Uses Meta Model API models (`muse-spark-1.3`, `sam-3.1`, `muse-voice-transcribe-1.0`, Muse Image)
+- [ ] Fits Push the Frontier (software); entered in the Indie Developer track
+- [ ] New work only: every commit dated inside the event window; the demo says what was built
+- [ ] Public repo
+- [ ] Deployed live product judges can use
+- [ ] 3 minute demo video of what was built
+- [ ] Everyone who worked on it listed
+- [ ] Not an excluded project type (not a basic chatbot, RAG or simple analyser)
+- [ ] Only tutorials we have the right to use in the demo and preloaded examples
+- [ ] Most Viral: X post link submitted on the platform
+- [ ] Submitted on the Cerebral Valley platform before Nov 4, 9:00 PM ET
 
 ## 12. Acceptance tests
 
