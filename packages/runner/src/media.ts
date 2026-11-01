@@ -9,7 +9,7 @@ export function duration(video: string): number {
 
 /** Inline requests are capped at 50 MB, so large videos are re-encoded small. */
 export function forSpark(video: string, out: string): string {
-  if (statSync(video).size < 40_000_000) return video;
+  if (statSync(video).size < 15_000_000) return video;
   ff(["-i", video, "-vf", "scale=-2:480", "-r", "8", "-c:v", "libx264", "-crf", "32", "-preset", "veryfast", "-c:a", "aac", "-b:a", "48k", out]);
   return out;
 }

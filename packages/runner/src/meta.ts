@@ -32,6 +32,8 @@ export function outputText(resp: any): string {
 export async function sparkVideo(videoPath: string, prompt: string): Promise<{ text: string; usage: any }> {
   const resp = await postJson("/responses", {
     model: "muse-spark-1.3",
+    // Meta stores Responses by default and refuses to store large ones; we never need them back.
+    store: false,
     input: [{ type: "message", role: "user", content: [
       { type: "input_text", text: prompt },
       { type: "input_video", video_url: dataUrl(videoPath, "video/mp4") },
@@ -51,6 +53,7 @@ export async function sparkChat(messages: ChatMessage[], tools?: unknown[]): Pro
 export async function samImage(imagePath: string, phrase: string): Promise<string> {
   const resp = await postJson("/responses", {
     model: "sam-3.1",
+    store: false,
     input: [{ type: "message", role: "user", content: [
       { type: "input_text", text: phrase },
       { type: "input_image", image_url: dataUrl(imagePath, imagePath.endsWith(".png") ? "image/png" : "image/jpeg") },
