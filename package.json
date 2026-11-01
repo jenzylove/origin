@@ -1,0 +1,5 @@
+{
+  "name": "origin",
+  "private": true,
+  "workspaces": ["packages/*", "apps/*"]
+}
