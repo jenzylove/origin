@@ -21,7 +21,7 @@ async function heartbeat(dir: string) {
   await upload(p, "status/ingest.json", "application/json");
 }
 
-async function handle(run: { id: string; source_url: string }) {
+async function handle(run: { id: string; source_url: string; control_hash: string | null }) {
   claimed.add(run.id);
   const dir = mkdtempSync(join(tmpdir(), "origin-ingest-"));
   const out = join(dir, "input.mp4");
@@ -38,7 +38,9 @@ async function handle(run: { id: string; source_url: string }) {
   }
   const videoUrl = await upload(out, `inputs/${run.id}.mp4`, "video/mp4");
   await event(run.id, "download_done", {});
-  execFileSync("gh", ["workflow", "run", "run.yml", "-R", REPO, "-f", `run_id=${run.id}`, "-f", `video_url=${videoUrl}`, "-f", `source_url=${run.source_url}`], { stdio: "inherit" });
+  execFileSync("gh", ["workflow", "run", "run.yml", "-R", REPO, "-f", `run_id=${run.id}`, "-f", `video_url=${videoUrl}`, "-f", `source_url=${run.source_url}`,
+    // Runs started from the site have a control token and a person watching; batch runs do not.
+    "-f", `unattended=${run.control_hash ? "0" : "1"}`], { stdio: "inherit" });
   rmSync(dir, { recursive: true, force: true });
   console.log(`dispatched ${run.id}`);
 }
@@ -51,7 +53,7 @@ async function loop() {
   for (;;) {
     try {
       const since = new Date(Date.now() - 60 * 60_000).toISOString();
-      const runs = await select("runs", `select=id,source_url&status=eq.queued&video_id=not.is.null&created_at=gte.${since}&order=created_at`);
+      const runs = await select("runs", `select=id,source_url,control_hash&status=eq.queued&video_id=not.is.null&created_at=gte.${since}&order=created_at`);
       for (const r of runs) if (!claimed.has(r.id)) await handle(r);
     } catch (e) {
       console.error(String(e));
