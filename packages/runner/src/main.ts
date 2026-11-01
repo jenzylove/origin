@@ -65,7 +65,7 @@ async function main() {
     }
     await update("runs", `id=eq.${runId}`, { title: ex.title, kind: ex.kind, status: "running" });
 
-    if (ex.kind !== "code" && ex.kind !== "web") {
+    if (ex.kind !== "code" && ex.kind !== "web" && ex.kind !== "blender") {
       // Other runners land in later phases; say so instead of pretending.
       await update("runs", `id=eq.${runId}`, { status: "failed", error: `The ${ex.kind} runner is not live yet. ${ex.why}`, finished_at: new Date().toISOString() });
       return;
@@ -74,9 +74,10 @@ async function main() {
     sb = args.sandbox === "local" ? new LocalSandbox() : await DockerSandbox.create();
     const context = `Tutorial: ${ex.title}. ${ex.steps.length} steps follow, one at a time.\nNarration (for context): ${ex.transcript.slice(0, 4000)}`;
     const counts: Record<string, number> = {};
-    await runSteps(ex.steps, context, sb, () => Browser.create(work), emit, async (step, r) => {
+    await runSteps(ex.steps, context, sb, work, () => Browser.create(work), emit, async (step, r) => {
       counts[r.verdict] = (counts[r.verdict] ?? 0) + 1;
-      const nowUrl = r.now ? await upload(r.now.path, `${runId}/now_${step.index}.jpg`, "image/jpeg") : null;
+      const png = r.now?.path.endsWith(".png");
+      const nowUrl = r.now ? await upload(r.now.path, `${runId}/now_${step.index}.${png ? "png" : "jpg"}`, png ? "image/png" : "image/jpeg") : null;
       await update("steps", `run_id=eq.${runId}&idx=eq.${step.index}`, {
         verdict: r.verdict, reasons: r.reasons, replacement: r.replacement ?? null, output: r.output,
         now_shot_url: nowUrl, now_box: r.now?.box ? { ...r.now.box, w: r.now.width, h: r.now.height } : null,

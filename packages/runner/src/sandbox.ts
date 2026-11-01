@@ -1,5 +1,5 @@
 import { spawn, execFileSync } from "node:child_process";
-import { mkdtempSync } from "node:fs";
+import { copyFileSync, mkdtempSync } from "node:fs";
 import { tmpdir } from "node:os";
 import { join } from "node:path";
 
@@ -7,6 +7,8 @@ export interface ExecResult { exitCode: number; stdout: string; stderr: string; 
 
 export interface Sandbox {
   exec(command: string, opts?: { timeoutMs?: number; background?: boolean }): Promise<ExecResult>;
+  /** Copy a file out of the sandbox to this machine. */
+  copyOut(path: string, hostPath: string): Promise<void>;
   close(): Promise<void>;
 }
 
@@ -31,6 +33,7 @@ abstract class ShellSandbox implements Sandbox {
   constructor(cwd: string) { this.cwd = cwd; }
   protected abstract argv(script: string): string[];
   abstract close(): Promise<void>;
+  abstract copyOut(path: string, hostPath: string): Promise<void>;
 
   async exec(command: string, opts: { timeoutMs?: number; background?: boolean } = {}): Promise<ExecResult> {
     const timeoutMs = opts.timeoutMs ?? 600_000;
@@ -60,6 +63,7 @@ export class DockerSandbox extends ShellSandbox {
   }
 
   protected argv(script: string) { return ["docker", "exec", this.name, "bash", "-lc", script]; }
+  async copyOut(path: string, hostPath: string) { execFileSync("docker", ["cp", `${this.name}:${path}`, hostPath]); }
   async close() { try { execFileSync("docker", ["rm", "-f", this.name]); } catch { /* already gone */ } }
 }
 
@@ -67,5 +71,6 @@ export class DockerSandbox extends ShellSandbox {
 export class LocalSandbox extends ShellSandbox {
   constructor() { super(mkdtempSync(join(tmpdir(), "origin-")).replace(/\\/g, "/")); }
   protected argv(script: string) { return ["bash", "-lc", script]; }
+  async copyOut(path: string, hostPath: string) { copyFileSync(path, hostPath); }
   async close() {}
 }

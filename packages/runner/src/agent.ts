@@ -3,6 +3,7 @@ import { sparkChat, type ChatMessage } from "./meta.js";
 import { dataUrl } from "./meta.js";
 import type { Sandbox, ExecResult } from "./sandbox.js";
 import type { Browser, Shot } from "./browser.js";
+import { Blender } from "./blender.js";
 
 export interface StepResult {
   verdict: Verdict;
@@ -43,6 +44,14 @@ const TOOLS = [
     description: "Press a key in the browser, e.g. Enter.",
     parameters: { type: "object", properties: { key: { type: "string" } }, required: ["key"] } } },
   { type: "function", function: {
+    name: "blender_python",
+    description: "Run Blender Python (bpy) against the tutorial's saved scene in today's Blender, headless. The scene is loaded before and saved after. Returns the output. Use it to do each Blender step the tutorial shows in the UI.",
+    parameters: { type: "object", properties: { code: { type: "string" } }, required: ["code"] } } },
+  { type: "function", function: {
+    name: "blender_render",
+    description: "Render the current Blender scene from its camera and see the image.",
+    parameters: { type: "object", properties: {} } } },
+  { type: "function", function: {
     name: "grade_step",
     description: "Record the verdict for the current tutorial step. works = runs as taught and is still the current way. changed = runs but is deprecated, end of life, or no longer the recommended way. broken = fails today.",
     parameters: { type: "object", properties: {
@@ -57,6 +66,7 @@ For each step: run it as the tutorial teaches, read the output carefully (deprec
 If the step is changed or broken, find today's recommended way (check official sources with curl when unsure, for example https://nodejs.org/dist/index.json for Node releases), run it with exec, and only give a replacement_command that you actually ran and that passed.
 When a later step depends on an earlier one that you replaced, continue on top of your replacement so the tutorial still reaches its goal.
 Website steps (open a page, click, type) are done in the real browser with the browser tools, so today's screen is seen. Describe click targets visually, the way they look.
+Blender steps: do what the tutorial does in the UI with blender_python in today's Blender. If a menu, operator, setting or default changed or was removed since the video, grade changed or broken and name today's equivalent. Render with blender_render when the step changes what the scene looks like.
 Steps that install software on a desktop (download buttons, installers): look at today's page in the browser, then install the equivalent in the sandbox.
 Commands that keep running (dev servers, watch modes, "npm run watch", "npm start") must use exec with background=true; judge them from the first output and any files they produce.
 If a step is no longer needed today (for example a config file the tool no longer uses), grade it broken or changed and say so in the reason; leave replacement_command empty.
@@ -69,11 +79,12 @@ const RUN_BUDGET_MS = 40 * 60_000;
 interface Graded { verdict: string; reason: string; replacement_command?: string }
 
 export async function runSteps(
-  steps: Step[], context: string, sb: Sandbox, openBrowser: () => Promise<Browser>, emit: Emit,
+  steps: Step[], context: string, sb: Sandbox, work: string, openBrowser: () => Promise<Browser>, emit: Emit,
   onResult: (s: Step, r: StepResult) => Promise<void>,
 ): Promise<void> {
   const messages: ChatMessage[] = [{ role: "system", content: SYSTEM }, { role: "user", content: context }];
   let browser: Browser | null = null;
+  let blender: Blender | null = null;
 
   // Only the latest screenshot stays in the conversation; older ones are dropped to save context.
   const showScreen = (shot: Shot) => {
@@ -82,7 +93,7 @@ export async function runSteps(
     }
     messages.push({ role: "user", content: [
       { type: "text", text: `Screenshot after that action. ${shot.note}` },
-      { type: "image_url", image_url: { url: dataUrl(shot.after, "image/jpeg") } },
+      { type: "image_url", image_url: { url: dataUrl(shot.after, shot.after.endsWith(".png") ? "image/png" : "image/jpeg") } },
     ] });
   };
 
@@ -142,6 +153,23 @@ export async function runSteps(
           await emit("browse_done", { index: step.index, note: shot.note, found: !!shot.box });
           messages.push({ role: "tool", tool_call_id: call.id, content: shot.note });
           showScreen(shot);
+        } else if (call.function.name === "blender_python") {
+          blender ??= new Blender(sb, work);
+          await emit("exec_start", { index: step.index, command: `blender: ${String(args.code).split(String.fromCharCode(10))[0]!.slice(0, 120)}` });
+          const result = await blender.python(args.code);
+          execs.push({ command: `blender_python: ${args.code}`, result });
+          await emit("exec_done", { index: step.index, command: "blender_python", exitCode: result.exitCode, output: tail(result.stdout + result.stderr, 1500) });
+          messages.push({ role: "tool", tool_call_id: call.id, content: JSON.stringify({ exit_code: result.exitCode, saved: result.stdout.includes("ORIGIN_SAVED"), output: tail(result.stdout + result.stderr) }) });
+        } else if (call.function.name === "blender_render") {
+          blender ??= new Blender(sb, work);
+          await emit("exec_start", { index: step.index, command: "blender: render" });
+          const r = await blender.render();
+          await emit("browse_done", { index: step.index, note: r.note, found: !!r.path });
+          messages.push({ role: "tool", tool_call_id: call.id, content: r.note });
+          if (r.path) {
+            now = { path: r.path, after: r.path, box: null, width: 960, height: 540, note: r.note };
+            showScreen(now);
+          }
         } else if (call.function.name === "grade_step") {
           const rep = typeof args.replacement_command === "string" ? args.replacement_command.trim() : "";
           let note = "recorded";
