@@ -9,12 +9,12 @@ import { Tape } from "@/components/Tape";
 export const dynamic = "force-dynamic";
 
 const FAQ: [string, string][] = [
-  ["What tutorials can it run?", "Code and app building tutorials run today, in a sealed sandbox. Website, Blender and account tutorials are next. If a run needs a runner that is not live yet, the run page says so plainly."],
-  ["Does it touch my accounts?", "No. Runs happen in a sealed sandbox with none of your logins. Origin stops before any step that would publish, pay, delete or send, and marks that step gated."],
-  ["Which models does it use?", "Muse Spark watches the video, plans each step and checks the result. Muse Voice Transcribe reads the narration. SAM 3.1 outlines what was clicked."],
-  ["Is it free?", "Yes, during the hackathon. Every run uses real compute, so the number of runs may be limited."],
-  ["What if it gets it wrong?", "Every run is public with its full output. You can open any step, read the terminal, and judge it yourself. The results page lists every run."],
-  ["How long does a run take?", "A short tutorial usually takes a few minutes. Watching the video comes first, then each step runs in turn. The run page shows exactly where it is."],
+  ["What tutorials can it run?", "Code and terminal tutorials run in a sealed sandbox. Website tutorials run in a real browser. Blender tutorials run in today's Blender, and the finished model is compared with the video's. Tutorials that need your account hand you a live browser to log in yourself. Phone apps and hardware are out of scope, and Origin says so in seconds."],
+  ["Does it touch my accounts?", "Only if you log in yourself, in the live browser on your own run. Only the person who started a run can control it, what you type is never stored or logged, and Origin still stops before any step that would publish, pay, delete or send."],
+  ["Which models does it use?", "Muse Spark 1.3 watches the video and runs every step as an agent. Muse Voice Transcribe catches steps that are only spoken. SAM 3.1 outlines what was clicked, in the old video and on today's screen. Muse Spark Open picks the right element when several look alike."],
+  ["Is it free?", "Yes, during the hackathon. Every run uses real compute, so only a few runs go at once."],
+  ["What if it gets it wrong?", "Every run is public with its full output. You can open any step, read the terminal, and judge it yourself. The results page lists every run, misses included."],
+  ["How long does a run take?", "Most tutorials take 6 to 15 minutes: Muse Spark watches the video first, then each step runs in turn. The run page shows exactly where it is."],
 ];
 
 export default async function Home() {
@@ -61,8 +61,8 @@ export default async function Home() {
               <h2 className="h2">Four moves, one <em>run</em>.</h2>
               <ol className="steps4">
                 <li><b>Watch</b><span>Muse Spark reads the video and its narration. Muse Voice Transcribe catches steps that are only spoken.</span></li>
-                <li><b>Point</b><span>SAM 3.1 outlines what was clicked, so every visual step has a target.</span></li>
-                <li><b>Run</b><span>Each step runs in a sealed sandbox, one at a time, and is marked works, changed or broken.</span></li>
+                <li><b>Point</b><span>SAM 3.1 outlines what was clicked in the old video, then finds the same thing on today&apos;s screen.</span></li>
+                <li><b>Run</b><span>Every step runs for real: terminal steps in a sealed sandbox, website steps in a real browser, Blender steps in today&apos;s Blender. Each is marked works, changed or broken.</span></li>
                 <li><b>Repair</b><span>A fix is kept only if it runs. Otherwise the step stays broken.</span></li>
               </ol>
             </div>
