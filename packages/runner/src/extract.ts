@@ -1,7 +1,27 @@
 import { join } from "node:path";
 import { parseSparkSteps, parseSamOutput, type Step } from "@origin/core";
 import { sparkVideo, transcribe, samImage } from "./meta.js";
-import { audioChunks, forSpark, frameAt } from "./media.js";
+import { audioChunks, forSpark, frameAt, drawBoxes, BOX_COLORS } from "./media.js";
+import { openVision } from "./open.js";
+
+/**
+ * SAM finds every element matching the phrase; several look alike (two green download
+ * buttons). Muse Spark Open looks at the candidates, outlined in distinct colors, and
+ * picks the one the step means.
+ */
+async function pickBox(frame: string, boxes: Array<{ x1: number; y1: number; x2: number; y2: number }>, detail: string, out: string): Promise<number> {
+  const shown = boxes.slice(0, BOX_COLORS.length);
+  drawBoxes(frame, shown, out);
+  const legend = shown.map((_, i) => BOX_COLORS[i]).join(", ");
+  try {
+    const answer = await openVision(out, `Several elements are outlined in these colors: ${legend}. Which color outlines the element for this tutorial step: "${detail}"? Reply with only the color name.`);
+    const i = shown.findIndex((_, k) => answer.toLowerCase().includes(BOX_COLORS[k]!));
+    return i >= 0 ? i : 0;
+  } catch (e) {
+    console.warn(`pickBox: ${e}`);
+    return 0;
+  }
+}
 
 export type Kind = "code" | "web" | "blender" | "account" | "unsupported";
 
@@ -57,7 +77,10 @@ export async function extract(video: string, work: string): Promise<Extraction> 
     if (s.action !== "click" || !s.target) continue;
     const frame = frameAt(video, s.t + 1, join(work, `then_${s.index}.jpg`));
     const frames = parseSamOutput(await samImage(frame, s.target));
-    const o = frames[0]?.objects[0];
+    const objects = frames[0]?.objects ?? [];
+    const o = objects.length > 1
+      ? objects[await pickBox(frame, objects.map((x) => x.box), s.detail, join(work, `pick_${s.index}.jpg`))]
+      : objects[0];
     targets.set(s.index, o ? { frame, box: o.box, width: o.width, height: o.height } : null);
   }
   return { title: obj.title ?? "", kind: obj.kind ?? "unsupported", why: obj.why ?? "", transcript, steps, targets, usage };
