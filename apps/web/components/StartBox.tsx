@@ -35,13 +35,25 @@ export function StartBox({ initial = "" }: { initial?: string }) {
     void send(JSON.stringify({ url: url.trim() }), { "Content-Type": "application/json" });
   }
 
-  function picked(e: React.ChangeEvent<HTMLInputElement>) {
+  async function picked(e: React.ChangeEvent<HTMLInputElement>) {
     const f = e.target.files?.[0];
-    if (!f) return;
-    const form = new FormData();
-    form.append("file", f);
-    void send(form);
     e.target.value = "";
+    if (!f) return;
+    if (f.size > 50_000_000) return setError("That file is over 50 MB. Trim it or export at 480p.");
+    setBusy(true);
+    setError(null);
+    try {
+      // The video goes straight to storage; our server only signs the upload.
+      const res = await fetch("/api/runs", { method: "POST", body: JSON.stringify({ upload: true }), headers: { "Content-Type": "application/json" } });
+      const sign = (await res.json()) as { key?: string; uploadUrl?: string; error?: string };
+      if (!res.ok || !sign.uploadUrl) throw new Error(sign.error ?? `server said ${res.status}`);
+      const put = await fetch(sign.uploadUrl, { method: "PUT", body: f, headers: { "Content-Type": "video/mp4" } });
+      if (!put.ok) throw new Error(`upload failed (${put.status})`);
+      await send(JSON.stringify({ key: sign.key }), { "Content-Type": "application/json" });
+    } catch (err) {
+      setError(`Could not start a run: ${err instanceof Error ? err.message : String(err)}.`);
+      setBusy(false);
+    }
   }
 
   return (

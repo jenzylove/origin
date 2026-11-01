@@ -1,5 +1,6 @@
 import "./env.js";
-import { mkdtempSync, writeFileSync } from "node:fs";
+import { existsSync, mkdtempSync, writeFileSync } from "node:fs";
+import { execFileSync } from "node:child_process";
 import { tmpdir } from "node:os";
 import { join } from "node:path";
 import { parseArgs } from "node:util";
@@ -24,6 +25,13 @@ async function fetchVideo(url: string, work: string): Promise<string> {
   return path;
 }
 
+function fetchYouTube(url: string, work: string): string {
+  const out = join(work, "input.mp4");
+  execFileSync("yt-dlp", ["-q", "--no-playlist", "-S", "res:480,ext:mp4", "--merge-output-format", "mp4", "--match-filter", "duration<=2400", "-o", out, url], { stdio: "inherit" });
+  if (!existsSync(out)) throw new Error("This video is longer than 40 minutes, or YouTube refused the download. Upload the MP4 instead.");
+  return out;
+}
+
 async function main() {
   const work = mkdtempSync(join(tmpdir(), "origin-run-"));
   const runId: string = args["run-id"] ?? (await insert("runs", { source_url: args["source-url"] ?? null, status: "queued" })).id;
@@ -32,7 +40,10 @@ async function main() {
 
   let sb: Sandbox | null = null;
   try {
-    const video = args.video ?? (args["video-url"] ? await fetchVideo(args["video-url"], work) : null);
+    const source = args["source-url"] ?? "";
+    const video = args.video
+      ?? (args["video-url"] ? await fetchVideo(args["video-url"], work) : null)
+      ?? (/youtu\.?be/.test(source) ? fetchYouTube(source, work) : null);
     if (!video) throw new Error("No video given");
 
     await update("runs", `id=eq.${runId}`, { status: "extracting" });
