@@ -7,6 +7,7 @@ import { parseArgs } from "node:util";
 import { insert, update, select, event, upload } from "./db.js";
 import { extract } from "./extract.js";
 import { sparkCompare } from "./meta.js";
+import { makeCards, type CardStep } from "./cards.js";
 import { duration, frameAt } from "./media.js";
 import { runSteps } from "./agent.js";
 import { Browser } from "./browser.js";
@@ -76,8 +77,10 @@ async function main() {
     sb = args.sandbox === "local" ? new LocalSandbox() : await DockerSandbox.create();
     const context = `Tutorial: ${ex.title}. ${ex.steps.length} steps follow, one at a time.\nNarration (for context): ${ex.transcript.slice(0, 4000)}`;
     const counts: Record<string, number> = {};
+    const graded: CardStep[] = [];
     const { lastRender } = await runSteps(ex.steps, context, sb, work, () => Browser.create(work), emit, runId, async (step, r) => {
       counts[r.verdict] = (counts[r.verdict] ?? 0) + 1;
+      graded.push({ index: step.index, tLabel: step.tLabel, verdict: r.verdict, detail: step.detail, replacement: r.replacement, reason: r.reasons[0] ?? "" });
       const png = r.now?.path.endsWith(".png");
       const nowUrl = r.now ? await upload(r.now.path, `${runId}/now_${step.index}.${png ? "png" : "jpg"}`, png ? "image/png" : "image/jpeg") : null;
       await update("steps", `run_id=eq.${runId}&idx=eq.${step.index}`, {
@@ -103,7 +106,9 @@ async function main() {
         await emit("final_compare", cmp);
       } catch (e) { console.warn(`final compare: ${e}`); }
     }
-    await update("runs", `id=eq.${runId}`, { status: "done", summary: { counts, usage: ex.usage, final }, finished_at: new Date().toISOString() });
+    // Creator cards for every step that changed or broke (Muse Image).
+    const cards = await makeCards(runId, graded, work).catch(() => ({}));
+    await update("runs", `id=eq.${runId}`, { status: "done", summary: { counts, usage: ex.usage, final, cards }, finished_at: new Date().toISOString() });
     await emit("run_done", { counts });
   } catch (e) {
     console.error(e);

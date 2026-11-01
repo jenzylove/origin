@@ -99,6 +99,7 @@ export function RunView({ initial }: { initial: Payload }) {
           <span>{statusLabel(run)}</span>
           {run.kind && <span>Kind: {run.kind}</span>}
           {run.source_url && <a href={run.source_url}>{run.source_url}</a>}
+          {run.status === "done" && (counts.changed || counts.broken) ? <a href={`/run/${run.id}/creator`}>For the creator</a> : null}
         </div>
       </div>
 

@@ -81,3 +81,9 @@ export async function sparkCompare(thenPath: string, nowPath: string, what: stri
   const obj = JSON.parse(text.slice(text.indexOf("{"), text.lastIndexOf("}") + 1));
   return { match: obj.match, note: obj.note };
 }
+
+/** Muse Image: one PNG from a prompt. Returns the image bytes. */
+export async function museImage(prompt: string, size = "1600x900"): Promise<Buffer> {
+  const resp = await postJson("/images/generations", { model: "muse-image-1.0", n: 1, size, output_format: "png", prompt });
+  return Buffer.from(resp.data[0].b64_json, "base64");
+}
