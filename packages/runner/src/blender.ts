@@ -39,6 +39,7 @@ if meshes:
 s.render.engine = "CYCLES"
 s.cycles.device = "CPU"
 s.cycles.samples = 24
+s.cycles.use_denoising = False
 s.render.resolution_x, s.render.resolution_y, s.render.resolution_percentage = 960, 540, 100
 s.render.filepath = "/work/render.png"
 if s.camera is None:
@@ -58,14 +59,14 @@ export class Blender {
     if (this.ready) return;
     // Today's Blender: the newest official release, not the distro's older package.
     const install = String.raw`
-if ! command -v blender >/dev/null; then
+if [ ! -x /usr/local/bin/blender-today ]; then
   apt-get update -qq && DEBIAN_FRONTEND=noninteractive apt-get install -y -qq xz-utils libxi6 libxxf86vm1 libxfixes3 libxrender1 libgl1 libxkbcommon0 libsm6 libice6 >/dev/null
   D=$(curl -s https://download.blender.org/release/ | grep -oE 'Blender[0-9]+\.[0-9]+/' | sort -V | uniq | tail -1)
   F=$(curl -s https://download.blender.org/release/$D | grep -oE 'blender-[0-9.]+-linux-x64\.tar\.xz' | sort -V | uniq | tail -1)
   curl -sL "https://download.blender.org/release/$D$F" | tar -xJ -C /opt
-  ln -sf "/opt/$(basename "$F" .tar.xz)/blender" /usr/local/bin/blender
+  ln -sf "/opt/$(basename "$F" .tar.xz)/blender" /usr/local/bin/blender-today
 fi
-blender --version | head -1`;
+blender-today --version | head -1`;
     const r = await this.sb.exec(install, { timeoutMs: 600_000 });
     if (r.exitCode !== 0) throw new Error(`Blender install failed: ${r.stderr.slice(-300)}`);
     this.ready = true;
@@ -74,7 +75,7 @@ blender --version | head -1`;
   private async script(name: string, body: string): Promise<ExecResult> {
     await this.ensure();
     const b64 = Buffer.from(body).toString("base64");
-    return this.sb.exec(`echo ${b64} | base64 -d > /work/${name}.py && blender -b --factory-startup --python /work/${name}.py 2>&1 | grep -vE "^(Blender quit|Read prefs|Fra:)" | tail -40`, { timeoutMs: 300_000 });
+    return this.sb.exec(`echo ${b64} | base64 -d > /work/${name}.py && blender-today -b --factory-startup --python /work/${name}.py 2>&1 | grep -vE "^(Blender quit|Read prefs|Fra:)" | tail -40`, { timeoutMs: 300_000 });
   }
 
   async python(code: string): Promise<ExecResult> {
@@ -83,7 +84,7 @@ blender --version | head -1`;
 
   async version(): Promise<string> {
     await this.ensure();
-    return (await this.sb.exec("blender --version | head -1")).stdout.trim();
+    return (await this.sb.exec("blender-today --version | head -1")).stdout.trim();
   }
 
   /** Render the current scene; returns the image on this machine, or why it could not. */
