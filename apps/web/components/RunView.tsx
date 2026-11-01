@@ -6,6 +6,7 @@ import { isFinished } from "@/lib/types";
 import { countVerdicts, runName, statusLabel, VERDICTS } from "@/lib/format";
 import { Tape } from "./Tape";
 import { StepRow, Shot } from "./StepRow";
+import { LiveBrowser } from "./LiveBrowser";
 
 interface Payload { run: Run; steps: Step[]; events: RunEvent[] }
 
@@ -117,6 +118,14 @@ export function RunView({ initial }: { initial: Payload }) {
         {offline && !finished && <span className="eyebrow" style={{ margin: 0 }}>Connection lost, retrying</span>}
       </div>
 
+      {run.status === "waiting_user" && (
+        <LiveBrowser
+          runId={run.id}
+          frameUrl={`${process.env.NEXT_PUBLIC_SUPABASE_URL}/storage/v1/object/public/media/${run.id}/live.jpg`}
+          site={String([...events].reverse().find((e) => e.kind === "login_needed")?.payload?.site ?? "")}
+        />
+      )}
+
       {run.summary?.final && (
         <section className="final">
           <div className="eyebrow">The finished result, then and now</div>
@@ -183,7 +192,7 @@ function bannerText(run: Run, total: number, done: number): string {
     case "queued": return "Queued. Waiting for a runner.";
     case "extracting": return "Muse Spark is watching the video.";
     case "running": return total ? `Running. ${done} of ${total} steps checked.` : "Running.";
-    case "waiting_user": return "Stopped before an action that needs your approval.";
+    case "waiting_user": return "Waiting for a login. Origin continues once the account step is done.";
     case "done": return `Done. ${total} steps checked.`;
     case "failed": return "Failed.";
   }

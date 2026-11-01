@@ -4,6 +4,7 @@ import { dataUrl } from "./meta.js";
 import type { Sandbox, ExecResult } from "./sandbox.js";
 import type { Browser, Shot } from "./browser.js";
 import { Blender } from "./blender.js";
+import { handOver } from "./live.js";
 
 export interface StepResult {
   verdict: Verdict;
@@ -52,10 +53,14 @@ const TOOLS = [
     description: "Render the current Blender scene from its camera and see the image.",
     parameters: { type: "object", properties: {} } } },
   { type: "function", function: {
+    name: "request_login",
+    description: "Call when a step needs the user's own account and the browser shows a login or sign up page. The person who started the run logs in themselves in a live view; you get a screenshot when they are done. Never type credentials yourself.",
+    parameters: { type: "object", properties: { site: { type: "string" } }, required: ["site"] } } },
+  { type: "function", function: {
     name: "grade_step",
     description: "Record the verdict for the current tutorial step. works = runs as taught and is still the current way. changed = runs but is deprecated, end of life, or no longer the recommended way. broken = fails today.",
     parameters: { type: "object", properties: {
-      verdict: { type: "string", enum: ["works", "changed", "broken"] },
+      verdict: { type: "string", enum: ["works", "changed", "broken", "skipped"], description: "skipped only when the step needs the user's account and nobody logged in" },
       reason: { type: "string", description: "One or two plain sentences a learner understands, citing the output you saw." },
       replacement_command: { type: "string", description: "For changed or broken: today's way, exactly as you ran it with exec and it passed." } },
       required: ["verdict", "reason"] } } },
@@ -70,6 +75,7 @@ Blender steps: do what the tutorial does in the UI with blender_python in today'
 Steps that install software on a desktop (download buttons, installers): look at today's page in the browser, then install the equivalent in the sandbox.
 Commands that keep running (dev servers, watch modes, "npm run watch", "npm start") must use exec with background=true; judge them from the first output and any files they produce.
 If a step is no longer needed today (for example a config file the tool no longer uses), grade it broken or changed and say so in the reason; leave replacement_command empty.
+When a step needs the user's account, open the site in the browser and call request_login at the login page. If nobody logs in, grade the step skipped with the reason "needs your account" and carry on.
 Never publish, post, pay, delete accounts, or send anything. Be fast: use few commands per step.`;
 
 const LONG_RUNNING = /\b(npm|pnpm|yarn|bun)\s+(run\s+)?(start|dev|serve|watch|preview)\b|^\s*(npx\s+)?(vite|nodemon|http-server|live-server|next\s+dev)(\s|$)|--watch\b/;
@@ -79,7 +85,7 @@ const RUN_BUDGET_MS = 40 * 60_000;
 interface Graded { verdict: string; reason: string; replacement_command?: string }
 
 export async function runSteps(
-  steps: Step[], context: string, sb: Sandbox, work: string, openBrowser: () => Promise<Browser>, emit: Emit,
+  steps: Step[], context: string, sb: Sandbox, work: string, openBrowser: () => Promise<Browser>, emit: Emit, runId: string | null,
   onResult: (s: Step, r: StepResult) => Promise<void>,
 ): Promise<{ lastRender?: string }> {
   let lastRender: string | undefined;
@@ -173,6 +179,13 @@ export async function runSteps(
             lastRender = r.path;
             showScreen(now);
           }
+        } else if (call.function.name === "request_login") {
+          browser ??= await openBrowser();
+          await emit("browse", { index: step.index, tool: "request_login", what: args.site });
+          const outcome = runId && process.env.ORIGIN_UNATTENDED !== "1" ? await handOver(runId, browser, work, String(args.site ?? "")) : "timeout";
+          const shot = await browser.snapshot(outcome === "done" ? "The user says they are logged in" : "Nobody logged in within 10 minutes");
+          messages.push({ role: "tool", tool_call_id: call.id, content: outcome === "done" ? "The user logged in. Continue the step from the screenshot." : "Nobody logged in. Grade this step skipped with the reason: needs your account." });
+          showScreen(shot);
         } else if (call.function.name === "grade_step") {
           const rep = typeof args.replacement_command === "string" ? args.replacement_command.trim() : "";
           let note = "recorded";

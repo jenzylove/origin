@@ -6,6 +6,7 @@ on:
       run_id: { description: "runs.id in Supabase", required: true }
       video_url: { description: "MP4 URL (empty for YouTube)", required: false }
       source_url: { description: "Tutorial page", required: false }
+      unattended: { description: "1 = nobody is watching (benchmark): skip login hand-overs", required: false, default: "0" }
 concurrency: { group: "run-${{ inputs.run_id }}" }
 jobs:
   run:
@@ -23,6 +24,7 @@ jobs:
           SUPABASE_URL: ${{ secrets.SUPABASE_URL }}
           SUPABASE_SECRET_KEY: ${{ secrets.SUPABASE_SECRET_KEY }}
           BASETEN_API_KEY: ${{ secrets.BASETEN_API_KEY }}
+          ORIGIN_UNATTENDED: ${{ inputs.unattended }}
         run: node packages/runner/dist/main.js --run-id "${{ inputs.run_id }}" --video-url "${{ inputs.video_url }}" --source-url "${{ inputs.source_url }}"
       - name: Mark the run failed if the job died
         if: cancelled() || failure()

@@ -78,6 +78,24 @@ export class Browser {
     return this.shot(clicked.box, `typed into "${target}"`);
   }
 
+  /** Live view for a human: a quick screenshot, and raw input at screen coordinates. */
+  async liveFrame(path: string): Promise<void> {
+    await this.page.screenshot({ path, type: "jpeg", quality: 55 });
+  }
+  async clickAt(x: number, y: number): Promise<void> {
+    await this.page.mouse.click(Math.max(0, Math.min(W, x)), Math.max(0, Math.min(H, y)));
+  }
+  async typeText(text: string): Promise<void> {
+    await this.page.keyboard.type(text, { delay: 15 });
+  }
+  async scroll(dy: number): Promise<void> {
+    await this.page.mouse.wheel(0, dy);
+  }
+  async snapshot(note: string): Promise<Shot> {
+    await this.settle();
+    return this.shot(null, `${note}; now at ${this.page.url()}`);
+  }
+
   async key(key: string): Promise<Shot> {
     await this.page.keyboard.press(key);
     await this.settle();

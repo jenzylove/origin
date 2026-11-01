@@ -1,5 +1,5 @@
 import { NextResponse } from "next/server";
-import { randomUUID } from "node:crypto";
+import { createHash, randomBytes, randomUUID } from "node:crypto";
 import { listRuns } from "@/lib/data";
 import { rest, write, signUpload, publicUrl } from "@/lib/supabase";
 import { youtubeId } from "@/lib/youtube";
@@ -15,6 +15,12 @@ export async function GET() {
   } catch (e) {
     return NextResponse.json({ error: String(e instanceof Error ? e.message : e) }, { status: 502 });
   }
+}
+
+// The starter's browser keeps the token; we keep only its hash. It controls the live browser.
+function control() {
+  const token = randomBytes(24).toString("hex");
+  return { token, hash: createHash("sha256").update(token).digest("hex") };
 }
 
 const fail = (error: string, status: number) => NextResponse.json({ error }, { status });
@@ -69,14 +75,16 @@ export async function POST(req: Request) {
       const source = `https://www.youtube.com/watch?v=${vid}`;
       if (!(await ingestOnline())) return fail("the YouTube downloader is offline right now. Upload the MP4 instead", 503);
       // The ingest worker downloads it on a home connection and starts the cloud run.
-      const run = await write<{ id: string }>("runs", { video_id: vid, source_url: source, status: "queued" });
-      return NextResponse.json({ id: run.id });
+      const c = control();
+      const run = await write<{ id: string }>("runs", { video_id: vid, source_url: source, status: "queued", control_hash: c.hash });
+      return NextResponse.json({ id: run.id, control: c.token });
     }
 
     if (body.key && /^inputs\/[0-9a-f-]{36}\.mp4$/.test(body.key)) {
-      const run = await write<{ id: string }>("runs", { status: "queued" });
+      const c = control();
+      const run = await write<{ id: string }>("runs", { status: "queued", control_hash: c.hash });
       await dispatch(run.id, publicUrl(body.key), "");
-      return NextResponse.json({ id: run.id });
+      return NextResponse.json({ id: run.id, control: c.token });
     }
 
     return fail("paste a YouTube link or upload an MP4", 400);

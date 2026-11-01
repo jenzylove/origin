@@ -220,3 +220,11 @@ table.results { width: 100%; border-collapse: collapse; font-size: 15px; }
 .final-verdict.m-yes b { color: var(--works); }
 .final-verdict.m-partly b { color: var(--changed); }
 .final-verdict.m-no b { color: var(--broken); }
+
+/* Live browser hand-over */
+.live { margin: 24px 0; padding: 20px 0; border-top: 1px solid var(--line); border-bottom: 1px solid var(--line); }
+.live p { max-width: 72ch; color: var(--dim); margin: 6px 0 14px; }
+.live-view img { cursor: crosshair; }
+.live-type { display: flex; gap: 10px; align-items: center; margin-top: 12px; }
+.live-type input { flex: 1; min-width: 0; background: transparent; color: var(--paper); border: 0; border-bottom: 1px solid var(--line); padding: 10px 2px; font: inherit; }
+.live-keys { display: flex; flex-wrap: wrap; gap: 14px; align-items: center; margin-top: 12px; }

@@ -38,3 +38,7 @@ export async function upload(localPath: string, key: string, contentType: string
   if (!res.ok) throw new Error(`Upload ${key} ${res.status}: ${(await res.text()).slice(0, 200)}`);
   return url(`/storage/v1/object/public/media/${key}`);
 }
+
+export async function remove(table: string, match: string): Promise<void> {
+  await rest("DELETE", `${table}?${match}`, undefined, "return=minimal");
+}

@@ -16,8 +16,11 @@ export function StartBox({ initial = "" }: { initial?: string }) {
     setError(null);
     try {
       const res = await fetch("/api/runs", { method: "POST", body, headers });
-      const data = (await res.json().catch(() => ({}))) as { id?: string; error?: string };
+      const data = (await res.json().catch(() => ({}))) as { id?: string; control?: string; error?: string };
       if (res.ok && data.id) {
+        if (data.control) {
+          try { localStorage.setItem(`origin-control-${data.id}`, data.control); } catch { /* private mode */ }
+        }
         router.push(`/run/${data.id}`);
         return;
       }
