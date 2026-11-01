@@ -60,7 +60,7 @@ code, pre, .mono { font-family: var(--mono); }
 .nav { display: flex; gap: 22px; font-size: 15px; color: var(--dim); }
 .nav a { text-decoration: none; }
 .nav a:hover { color: var(--fg); }
-.footer { border-top: 1px solid var(--line); margin-top: 120px; padding: 40px 0 56px; display: flex; flex-wrap: wrap; gap: 24px 48px; justify-content: space-between; color: var(--dim); font-size: 15px; }
+.footer { border-top: 1px solid var(--line); margin-top: 120px; padding-top: 40px; padding-bottom: 56px; display: flex; flex-wrap: wrap; gap: 24px 48px; justify-content: space-between; color: var(--dim); font-size: 15px; }
 .footer strong { font-family: var(--serif); font-size: 26px; font-weight: 400; color: var(--fg); display: block; margin-bottom: 6px; }
 .footer nav { display: flex; gap: 20px; flex-wrap: wrap; align-items: flex-start; }
 
