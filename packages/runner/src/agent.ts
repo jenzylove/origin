@@ -34,6 +34,8 @@ For each step: run it as the tutorial teaches, read the output carefully (deprec
 If the step is changed or broken, find today's recommended way (check official sources with curl when unsure, for example https://nodejs.org/dist/index.json for Node releases), run it with exec, and only give a replacement_command that you actually ran and that passed.
 When a later step depends on an earlier one that you replaced, continue on top of your replacement so the tutorial still reaches its goal.
 Steps that install software on a desktop (download buttons, installers) are done in the sandbox the equivalent way.
+Commands that keep running (dev servers, watch modes, "npm run watch", "npm start") must use exec with background=true; judge them from the first output and any files they produce.
+If a step is no longer needed today (for example a config file the tool no longer uses), grade it broken or changed and say so in the reason; leave replacement_command empty.
 Never publish, post, pay, delete accounts, or send anything. Be fast: use few commands per step.`;
 
 const rank: Record<string, number> = { works: 0, changed: 1, broken: 2 };
@@ -58,6 +60,7 @@ export async function runCodeSteps(
     let graded: Graded | null = null;
 
     for (let turn = 0; turn < 14 && !graded; turn++) {
+      if (turn === 11) messages.push({ role: "user", content: "You are nearly out of time for this step. Call grade_step now with what you have seen." });
       const { message } = await sparkChat(messages, TOOLS);
       messages.push({ role: "assistant", content: message.content ?? null, tool_calls: message.tool_calls });
       if (message.content) await emit("thought", { index: step.index, text: String(message.content).slice(0, 400) });
