@@ -69,3 +69,15 @@ export async function transcribe(wavPath: string): Promise<string> {
   if (!res.ok) throw new Error(`Transcribe ${res.status}: ${text.slice(0, 300)}`);
   return JSON.parse(text).transcript ?? "";
 }
+
+/** Spark compares two images: the tutorial's result and today's. */
+export async function sparkCompare(thenPath: string, nowPath: string, what: string): Promise<{ match: "yes" | "partly" | "no"; note: string }> {
+  const { message } = await sparkChat([{ role: "user", content: [
+    { type: "text", text: `Image 1 is the final result shown in a tutorial (${what}). Image 2 is the result rebuilt today by following its steps. Compare the objects and shapes, not lighting, color or camera angle. Reply only JSON: {"match": "yes" | "partly" | "no", "note": "one plain sentence naming what matches and what differs"}` },
+    { type: "image_url", image_url: { url: dataUrl(thenPath, "image/jpeg") } },
+    { type: "image_url", image_url: { url: dataUrl(nowPath, nowPath.endsWith(".png") ? "image/png" : "image/jpeg") } },
+  ] }]);
+  const text = String(message.content ?? "");
+  const obj = JSON.parse(text.slice(text.indexOf("{"), text.lastIndexOf("}") + 1));
+  return { match: obj.match, note: obj.note };
+}

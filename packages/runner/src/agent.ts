@@ -81,7 +81,8 @@ interface Graded { verdict: string; reason: string; replacement_command?: string
 export async function runSteps(
   steps: Step[], context: string, sb: Sandbox, work: string, openBrowser: () => Promise<Browser>, emit: Emit,
   onResult: (s: Step, r: StepResult) => Promise<void>,
-): Promise<void> {
+): Promise<{ lastRender?: string }> {
+  let lastRender: string | undefined;
   const messages: ChatMessage[] = [{ role: "system", content: SYSTEM }, { role: "user", content: context }];
   let browser: Browser | null = null;
   let blender: Blender | null = null;
@@ -169,6 +170,7 @@ export async function runSteps(
           messages.push({ role: "tool", tool_call_id: call.id, content: r.note });
           if (r.path) {
             now = { path: r.path, after: r.path, box: null, width: 960, height: 540, note: r.note };
+            lastRender = r.path;
             showScreen(now);
           }
         } else if (call.function.name === "grade_step") {
@@ -210,4 +212,5 @@ export async function runSteps(
     });
   }
   await browser?.close();
+  return { lastRender };
 }

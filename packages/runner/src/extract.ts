@@ -1,5 +1,5 @@
 import { join } from "node:path";
-import { parseSparkSteps, type Step } from "@origin/core";
+import { parseSparkSteps, parseTimestamp, type Step } from "@origin/core";
 import { sparkVideo, transcribe } from "./meta.js";
 import { audioChunks, forSpark, frameAt } from "./media.js";
 import { findTarget } from "./target.js";
@@ -15,6 +15,8 @@ export interface Extraction {
   transcript: string;
   steps: Step[];
   targets: Map<number, TargetBox | null>;
+  /** Seconds into the video where the finished result is shown, when Spark named one. */
+  resultT: number | null;
   usage: unknown;
 }
 
@@ -25,6 +27,7 @@ Return ONLY a JSON object:
   "title": "short title of what the tutorial builds",
   "kind": "code" | "web" | "blender" | "account" | "unsupported",
   "why": "one sentence: why this kind, or why it cannot be run (phone app, hardware)",
+  "result_t": "mm:ss when the finished result is shown most clearly (not an outro or end screen)",
   "steps": [
     { "t": "mm:ss", "action": "command" | "click" | "type" | "setting" | "navigate" | "blender",
       "detail": "the exact command, URL, text typed, or setting value; for click, what is clicked",
@@ -34,7 +37,7 @@ Return ONLY a JSON object:
 
 Rules:
 - kind "code" = terminal and code editor work; "web" = done by clicking through a website; "blender" = Blender; "account" = ends by posting, publishing or paying from the user's own account.
-- Include every step the viewer must perform, in order, with the time it is shown. Include steps that are only spoken, using the narration below.
+- Include every step the viewer must perform, in order, with the time it is shown. One step per meaningful action: group the keystrokes and clicks that make one change (e.g. "Add a cylinder with 12 vertices", not Shift+A, Mesh, Cylinder separately). At most 30 steps. Include steps that are only spoken, using the narration below.
 - Copy commands and code exactly as shown on screen, including versions.
 - For click steps, "detail" is the exact visible label of what is clicked, including any version number (e.g. "14.17.5 LTS Recommended For Most Users"), never a paraphrase.
 - Version requirements said aloud ("you need at least Node 14") are steps of action "setting".
@@ -66,5 +69,7 @@ export async function extract(video: string, work: string): Promise<Extraction> 
     }
     targets.set(s.index, hit);
   }
-  return { title: obj.title ?? "", kind: obj.kind ?? "unsupported", why: obj.why ?? "", transcript, steps, targets, usage };
+  let resultT: number | null = null;
+  try { if (obj.result_t) resultT = parseTimestamp(String(obj.result_t)); } catch { /* not given */ }
+  return { title: obj.title ?? "", kind: obj.kind ?? "unsupported", why: obj.why ?? "", transcript, steps, targets, resultT, usage };
 }

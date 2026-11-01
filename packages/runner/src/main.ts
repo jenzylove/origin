@@ -6,6 +6,8 @@ import { join } from "node:path";
 import { parseArgs } from "node:util";
 import { insert, update, select, event, upload } from "./db.js";
 import { extract } from "./extract.js";
+import { sparkCompare } from "./meta.js";
+import { duration, frameAt } from "./media.js";
 import { runSteps } from "./agent.js";
 import { Browser } from "./browser.js";
 import { DockerSandbox, LocalSandbox, type Sandbox } from "./sandbox.js";
@@ -74,7 +76,7 @@ async function main() {
     sb = args.sandbox === "local" ? new LocalSandbox() : await DockerSandbox.create();
     const context = `Tutorial: ${ex.title}. ${ex.steps.length} steps follow, one at a time.\nNarration (for context): ${ex.transcript.slice(0, 4000)}`;
     const counts: Record<string, number> = {};
-    await runSteps(ex.steps, context, sb, work, () => Browser.create(work), emit, async (step, r) => {
+    const { lastRender } = await runSteps(ex.steps, context, sb, work, () => Browser.create(work), emit, async (step, r) => {
       counts[r.verdict] = (counts[r.verdict] ?? 0) + 1;
       const png = r.now?.path.endsWith(".png");
       const nowUrl = r.now ? await upload(r.now.path, `${runId}/now_${step.index}.${png ? "png" : "jpg"}`, png ? "image/png" : "image/jpeg") : null;
@@ -86,7 +88,22 @@ async function main() {
       console.log(`step ${step.index + 1} ${r.verdict}: ${r.reasons[0]}`);
     });
 
-    await update("runs", `id=eq.${runId}`, { status: "done", summary: { counts, usage: ex.usage }, finished_at: new Date().toISOString() });
+    // Blender: does today's rebuild match the tutorial's final result?
+    let final: object | undefined;
+    if (ex.kind === "blender" && lastRender) {
+      try {
+        const at = ex.resultT ?? Math.max(0, duration(video) - 3);
+        const endFrame = frameAt(video, at, join(work, "final_then.jpg"));
+        const cmp = await sparkCompare(endFrame, lastRender, ex.title);
+        final = {
+          then_url: await upload(endFrame, `${runId}/final_then.jpg`, "image/jpeg"),
+          now_url: await upload(lastRender, `${runId}/final_now.png`, "image/png"),
+          ...cmp,
+        };
+        await emit("final_compare", cmp);
+      } catch (e) { console.warn(`final compare: ${e}`); }
+    }
+    await update("runs", `id=eq.${runId}`, { status: "done", summary: { counts, usage: ex.usage, final }, finished_at: new Date().toISOString() });
     await emit("run_done", { counts });
   } catch (e) {
     console.error(e);
