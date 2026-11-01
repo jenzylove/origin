@@ -55,7 +55,7 @@ code, pre, .mono { font-family: var(--mono); }
 @media (min-width: 720px) { .wrap { padding: 0 32px; } }
 
 /* header and footer */
-.header { display: flex; align-items: center; justify-content: space-between; padding: 20px 0; }
+.header { display: flex; align-items: center; justify-content: space-between; padding-top: 20px; padding-bottom: 20px; }
 .brand { font-family: var(--serif); font-size: 28px; text-decoration: none; letter-spacing: -0.01em; }
 .nav { display: flex; gap: 22px; font-size: 15px; color: var(--dim); }
 .nav a { text-decoration: none; }
@@ -145,7 +145,7 @@ code, pre, .mono { font-family: var(--mono); }
 .cols { display: grid; gap: 28px; padding-top: 24px; }
 @media (min-width: 1000px) { .cols { grid-template-columns: minmax(0, 1.15fr) minmax(0, 1fr); gap: 48px; } }
 .col-left, .col-right { min-width: 0; }
-@media (max-width: 999px) { .col-right { order: -1; } }
+@media (max-width: 999px) { .term-body { max-height: 320px; } }
 @media (min-width: 1000px) { .col-right { position: sticky; top: 16px; align-self: start; } }
 
 .then-media { position: relative; background: var(--then-tint); outline: 1px solid color-mix(in srgb, var(--then) 35%, transparent); }
