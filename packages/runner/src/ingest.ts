@@ -52,6 +52,8 @@ async function download(run: { id: string; source_url: string; control_hash: str
   execFileSync("gh", ["workflow", "run", "run.yml", "-R", REPO, "-f", `run_id=${run.id}`, "-f", `video_url=${videoUrl}`, "-f", `source_url=${run.source_url}`,
     // Runs started from the site have a control token and a person watching; batch runs do not.
     "-f", `unattended=${run.control_hash ? "0" : "1"}`], { stdio: "inherit" });
+  // Out of the queue now, so a restarted ingest never starts the same run twice.
+  await update("runs", `id=eq.${run.id}&status=eq.queued`, { status: "extracting" });
   rmSync(dir, { recursive: true, force: true });
   console.log(`dispatched ${run.id}`);
 }
