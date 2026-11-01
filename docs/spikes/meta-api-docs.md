@@ -33,3 +33,9 @@ Checked by hand against frames at 01:37 and 02:42: both match. Bonus finding: st
 - `green download button`: two objects, boxes (234,163)-(314,189) and (325,163)-(405,189) on a 640x360 frame: exactly the "14.17.5 LTS" and "16.7.0 Current" buttons (verified by drawing the boxes).
 
 **Design consequence:** Spark writes a visual description of each click target ("green download button"), and SAM turns it into a pixel box. Bare UI nouns fail; descriptive phrases work. SAM output format: `<|box;x1;y1;x2;y2;w;h|><|mask;...|>` per object, parsed with `@meta-sam/parser`.
+
+## YouTube intake (Nov 1 2026)
+
+- yt-dlp on a GitHub Actions runner: **FAIL**. YouTube answers "Sign in to confirm you're not a bot" to data centre IPs.
+- Muse Spark with `video_url` set to a YouTube page: **FAIL**, "unsupported media type `text/html`. Supported: MP4."
+- yt-dlp from a home connection: works (the CRA video downloaded at 480p in seconds).

@@ -27,7 +27,9 @@ async function fetchVideo(url: string, work: string): Promise<string> {
 
 function fetchYouTube(url: string, work: string): string {
   const out = join(work, "input.mp4");
-  execFileSync("yt-dlp", ["-q", "--no-playlist", "-S", "res:480,ext:mp4", "--merge-output-format", "mp4", "--match-filter", "duration<=2400", "-o", out, url], { stdio: "inherit" });
+  try {
+    execFileSync("yt-dlp", ["-q", "--no-playlist", "-S", "res:480,ext:mp4", "--merge-output-format", "mp4", "--match-filter", "duration<=2400", "-o", out, url], { stdio: "inherit" });
+  } catch { /* reported below */ }
   if (!existsSync(out)) throw new Error("This video is longer than 40 minutes, or YouTube refused the download. Upload the MP4 instead.");
   return out;
 }
