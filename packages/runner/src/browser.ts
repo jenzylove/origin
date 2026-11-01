@@ -62,6 +62,15 @@ export class Browser {
     return { ...before, note: `Not found on today's page: no "${target}"${label ? ` and no text "${label}"` : ""}.` };
   }
 
+  /** Find an element on the current page without clicking it. */
+  async locate(target: string, detail: string): Promise<Shot> {
+    const shot = await this.shot(null, "");
+    const found = await findTarget(shot.path, target, detail, join(this.work, `pick_loc_${this.n}.jpg`));
+    if (!found) return { ...shot, note: `Not on today's page: no "${target}".` };
+    const sx = W / found.width, sy = H / found.height;
+    return { ...shot, box: { x1: found.box.x1 * sx, y1: found.box.y1 * sy, x2: found.box.x2 * sx, y2: found.box.y2 * sy }, note: `Today's "${target}"` };
+  }
+
   async type(target: string, text: string, detail: string): Promise<Shot> {
     const clicked = await this.click(target, "", detail);
     if (!clicked.box) return clicked;

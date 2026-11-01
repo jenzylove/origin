@@ -65,7 +65,7 @@ const SYSTEM = `You are Origin. You re-run a software tutorial, step by step, on
 For each step: run it as the tutorial teaches, read the output carefully (deprecation and end of life warnings matter, not only exit codes), then call grade_step.
 If the step is changed or broken, find today's recommended way (check official sources with curl when unsure, for example https://nodejs.org/dist/index.json for Node releases), run it with exec, and only give a replacement_command that you actually ran and that passed.
 When a later step depends on an earlier one that you replaced, continue on top of your replacement so the tutorial still reaches its goal.
-Website steps (open a page, click, type) are done in the real browser with the browser tools, so today's screen is seen. Describe click targets visually, the way they look.
+Website steps (open a page, click, type) are done in the real browser with the browser tools, so today's screen is seen. For a click step, open the page it is on and use browser_click on the element as it looks today; do not jump to the destination URL. Describe click targets visually.
 Blender steps: do what the tutorial does in the UI with blender_python in today's Blender. If a menu, operator, setting or default changed or was removed since the video, grade changed or broken and name today's equivalent. Render with blender_render when the step changes what the scene looks like.
 Steps that install software on a desktop (download buttons, installers): look at today's page in the browser, then install the equivalent in the sandbox.
 Commands that keep running (dev servers, watch modes, "npm run watch", "npm start") must use exec with background=true; judge them from the first output and any files they produce.
@@ -113,6 +113,7 @@ export async function runSteps(
     const execs: Array<{ command: string; result: ExecResult }> = [];
     let graded: Graded | null = null;
     let now: Shot | undefined;
+    const reasonsExtra: string[] = [];
 
     const stepStart = Date.now();
     for (let turn = 0; turn < 14 && !graded; turn++) {
@@ -183,6 +184,12 @@ export async function runSteps(
       }
     }
 
+    // Then vs now: for a click step, look for the tutorial's element on today's page ourselves.
+    if (step.action === "click" && step.target && browser && !now?.box) {
+      try { now = await browser.locate(step.target, step.detail); } catch (e) { console.warn(`locate: ${e}`); }
+      if (now && !now.box) reasonsExtra.push(now.note);
+    }
+
     // A second, rule based opinion on the step's own command; the worse verdict wins.
     const own = execs.findLast((e) => e.command.includes(step.detail.trim())) ?? execs[0];
     const rule = own ? gradeCommand({ command: own.command, exitCode: own.result.exitCode, stdout: own.result.stdout, stderr: own.result.stderr }) : null;
@@ -192,6 +199,7 @@ export async function runSteps(
     // The rule check only catches deprecations Spark let through; exit codes are Spark's call in context.
     if (rule?.verdict === "changed" && verdict === "works") verdict = "changed";
     if (rule) reasons.push(...rule.reasons.map((r) => `Output check: ${r}`));
+    reasons.push(...reasonsExtra);
 
     await onResult(step, {
       verdict, reasons,
