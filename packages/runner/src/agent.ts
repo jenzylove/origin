@@ -62,8 +62,6 @@ Commands that keep running (dev servers, watch modes, "npm run watch", "npm star
 If a step is no longer needed today (for example a config file the tool no longer uses), grade it broken or changed and say so in the reason; leave replacement_command empty.
 Never publish, post, pay, delete accounts, or send anything. Be fast: use few commands per step.`;
 
-const rank: Record<string, number> = { works: 0, changed: 1, broken: 2 };
-
 interface Graded { verdict: string; reason: string; replacement_command?: string }
 
 export async function runSteps(
@@ -145,12 +143,13 @@ export async function runSteps(
     }
 
     // A second, rule based opinion on the step's own command; the worse verdict wins.
-    const own = execs.find((e) => e.command.includes(step.detail.trim())) ?? execs[0];
+    const own = execs.findLast((e) => e.command.includes(step.detail.trim())) ?? execs[0];
     const rule = own ? gradeCommand({ command: own.command, exitCode: own.result.exitCode, stdout: own.result.stdout, stderr: own.result.stderr }) : null;
     const g = graded as Graded | null;
     let verdict = (g?.verdict ?? "broken") as Verdict;
     const reasons = [g?.reason ?? "Origin could not finish checking this step."];
-    if (rule && rank[rule.verdict]! > rank[verdict]!) verdict = rule.verdict;
+    // The rule check only catches deprecations Spark let through; exit codes are Spark's call in context.
+    if (rule?.verdict === "changed" && verdict === "works") verdict = "changed";
     if (rule) reasons.push(...rule.reasons.map((r) => `Output check: ${r}`));
 
     await onResult(step, {

@@ -36,6 +36,7 @@ Rules:
 - kind "code" = terminal and code editor work; "web" = done by clicking through a website; "blender" = Blender; "account" = ends by posting, publishing or paying from the user's own account.
 - Include every step the viewer must perform, in order, with the time it is shown. Include steps that are only spoken, using the narration below.
 - Copy commands and code exactly as shown on screen, including versions.
+- For click steps, "detail" is the exact visible label of what is clicked, including any version number (e.g. "14.17.5 LTS Recommended For Most Users"), never a paraphrase.
 - Version requirements said aloud ("you need at least Node 14") are steps of action "setting".
 
 Narration transcript (no timestamps):
@@ -56,9 +57,14 @@ export async function extract(video: string, work: string): Promise<Extraction> 
   const targets = new Map<number, TargetBox | null>();
   for (const s of steps) {
     if (s.action !== "click" || !s.target) continue;
-    const frame = frameAt(video, s.t + 1, join(work, `then_${s.index}.jpg`));
-    const o = await findTarget(frame, s.target, s.detail, join(work, `pick_${s.index}.jpg`));
-    targets.set(s.index, o ? { frame, box: o.box, width: o.width, height: o.height } : null);
+    // Timestamps are approximate; look around them until the element is on screen.
+    let hit: TargetBox | null = null;
+    for (const dt of [1, -1, 3, -3, 6]) {
+      const frame = frameAt(video, s.t + dt, join(work, `then_${s.index}_${dt}.jpg`));
+      const o = await findTarget(frame, s.target, s.detail, join(work, `pick_${s.index}.jpg`));
+      if (o) { hit = { frame, box: o.box, width: o.width, height: o.height }; break; }
+    }
+    targets.set(s.index, hit);
   }
   return { title: obj.title ?? "", kind: obj.kind ?? "unsupported", why: obj.why ?? "", transcript, steps, targets, usage };
 }
