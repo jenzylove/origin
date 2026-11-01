@@ -153,7 +153,7 @@ code, pre, .mono { font-family: var(--mono); }
 .video { aspect-ratio: 16 / 9; margin-bottom: 8px; }
 .video iframe { width: 100%; height: 100%; border: 0; display: block; position: relative; z-index: 0; }
 .video::after { pointer-events: none; }
-.tag { position: absolute; z-index: 2; top: 0; left: 0; font-family: var(--mono); font-size: 11px; letter-spacing: 0.1em; padding: 3px 8px; background: var(--then); color: #0d0d0b; }
+.tag { position: absolute; z-index: 2; top: 8px; left: 8px; line-height: 1.4; font-family: var(--mono); font-size: 11px; letter-spacing: 0.1em; padding: 3px 8px; background: var(--then); color: #0d0d0b; }
 .tag.now { background: var(--works); }
 
 .step { border-top: 1px solid var(--line); padding: 20px 0 22px; display: grid; grid-template-columns: 58px minmax(0, 1fr); gap: 0 14px; cursor: pointer; scroll-margin-top: 16px; }
@@ -170,10 +170,11 @@ code, pre, .mono { font-family: var(--mono); }
 .today pre { margin: 6px 0 0; font-size: 13px; white-space: pre-wrap; overflow-wrap: anywhere; }
 .pair { display: grid; gap: 10px; margin-top: 14px; }
 @media (min-width: 560px) { .pair.two { grid-template-columns: 1fr 1fr; } }
-.shot { position: relative; line-height: 0; }
+.shot { position: relative; line-height: 0; overflow: hidden; }
 .shot img { width: 100%; height: auto; display: block; }
-.box { position: absolute; border: 2px solid var(--then); box-shadow: 0 0 0 1px rgba(0, 0, 0, 0.5); z-index: 1; animation: draw 0.5s ease-out both; }
-.box.now { border-color: var(--works); }
+/* Spotlight: the element SAM found stays bright, the rest of the frame dims. */
+.box { position: absolute; border: 3px solid var(--then); border-radius: 3px; box-shadow: 0 0 0 9999px rgba(10, 10, 8, 0.45), 0 0 18px 2px var(--then); z-index: 1; animation: draw 0.5s ease-out both; }
+.box.now { border-color: var(--works); box-shadow: 0 0 0 9999px rgba(10, 10, 8, 0.45), 0 0 18px 2px var(--works); }
 .empty { color: var(--dim); padding: 28px 0; border-top: 1px solid var(--line); }
 
 /* terminal */

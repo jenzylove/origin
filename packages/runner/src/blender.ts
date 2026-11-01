@@ -4,16 +4,38 @@ import type { Sandbox, ExecResult } from "./sandbox.js";
 const SCENE = "/work/scene.blend";
 
 // Opens the saved scene (or a fresh default one), runs the step's code, saves the scene.
-const prelude = (code: string) => `import bpy, os
+const open = `import bpy, os
 if os.path.exists("${SCENE}"):
     bpy.ops.wm.open_mainfile(filepath="${SCENE}")
-${code}
+`;
+const prelude = (code: string) => `${open}${code}
 bpy.ops.wm.save_as_mainfile(filepath="${SCENE}")
 print("ORIGIN_SAVED")
 `;
 
-const RENDER = `import bpy
+// Frame every mesh with a fresh camera and light, so the render shows the whole model
+// whatever camera the tutorial left behind. The tutorial's own scene is not changed on disk.
+const RENDER = `import bpy, mathutils
 s = bpy.context.scene
+meshes = [o for o in s.objects if o.type == "MESH" and o.visible_get()]
+if meshes:
+    pts = [o.matrix_world @ mathutils.Vector(c) for o in meshes for c in o.bound_box]
+    lo = mathutils.Vector((min(p.x for p in pts), min(p.y for p in pts), min(p.z for p in pts)))
+    hi = mathutils.Vector((max(p.x for p in pts), max(p.y for p in pts), max(p.z for p in pts)))
+    center, size = (lo + hi) / 2, max((hi - lo).length, 0.1)
+    cam = bpy.data.objects.new("OriginCam", bpy.data.cameras.new("OriginCam"))
+    s.collection.objects.link(cam)
+    cam.location = center + mathutils.Vector((1.0, -1.3, 0.8)).normalized() * size * 1.6
+    cam.rotation_euler = (center - cam.location).to_track_quat("-Z", "Y").to_euler()
+    cam.data.lens = 50
+    s.camera = cam
+    sun = bpy.data.objects.new("OriginSun", bpy.data.lights.new("OriginSun", "SUN"))
+    sun.data.energy = 3.0
+    sun.rotation_euler = (0.8, 0.2, 0.6)
+    s.collection.objects.link(sun)
+    if s.world is None:
+        s.world = bpy.data.worlds.new("OriginWorld")
+    s.world.color = (0.18, 0.18, 0.2)
 s.render.engine = "CYCLES"
 s.cycles.device = "CPU"
 s.cycles.samples = 24
@@ -66,7 +88,8 @@ blender --version | head -1`;
 
   /** Render the current scene; returns the image on this machine, or why it could not. */
   async render(): Promise<{ path: string | null; note: string }> {
-    const r = await this.script("render", prelude(RENDER));
+    // Read only: the framing camera and light are never saved into the tutorial's scene.
+    const r = await this.script("render", `${open}${RENDER}`);
     if (r.stdout.includes("ORIGIN_NO_CAMERA")) return { path: null, note: "The scene has no camera, so nothing was rendered." };
     if (!r.stdout.includes("ORIGIN_RENDERED")) return { path: null, note: `Render failed: ${r.stdout.slice(-400)}` };
     const host = join(this.work, `render_${++this.n}.png`);
