@@ -10,7 +10,7 @@ concurrency: { group: "run-${{ inputs.run_id }}" }
 jobs:
   run:
     runs-on: ubuntu-latest
-    timeout-minutes: 60
+    timeout-minutes: 55
     steps:
       - uses: actions/checkout@v4
       - uses: actions/setup-node@v4
@@ -24,3 +24,12 @@ jobs:
           SUPABASE_SECRET_KEY: ${{ secrets.SUPABASE_SECRET_KEY }}
           BASETEN_API_KEY: ${{ secrets.BASETEN_API_KEY }}
         run: node packages/runner/dist/main.js --run-id "${{ inputs.run_id }}" --video-url "${{ inputs.video_url }}" --source-url "${{ inputs.source_url }}"
+      - name: Mark the run failed if the job died
+        if: cancelled() || failure()
+        env:
+          SUPABASE_URL: ${{ secrets.SUPABASE_URL }}
+          SUPABASE_SECRET_KEY: ${{ secrets.SUPABASE_SECRET_KEY }}
+        run: |
+          curl -s -X PATCH "$SUPABASE_URL/rest/v1/runs?id=eq.${{ inputs.run_id }}&status=in.(queued,extracting,running)" \
+            -H "apikey: $SUPABASE_SECRET_KEY" -H "Authorization: Bearer $SUPABASE_SECRET_KEY" -H "Content-Type: application/json" \
+            -d "{\"status\":\"failed\",\"error\":\"The run machine stopped before finishing (job ${{ job.status }}).\",\"finished_at\":\"$(date -u +%FT%TZ)\"}"

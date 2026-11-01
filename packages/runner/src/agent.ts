@@ -62,6 +62,10 @@ Commands that keep running (dev servers, watch modes, "npm run watch", "npm star
 If a step is no longer needed today (for example a config file the tool no longer uses), grade it broken or changed and say so in the reason; leave replacement_command empty.
 Never publish, post, pay, delete accounts, or send anything. Be fast: use few commands per step.`;
 
+const LONG_RUNNING = /\b(npm|pnpm|yarn|bun)\s+(run\s+)?(start|dev|serve|watch|preview)\b|^\s*(npx\s+)?(vite|nodemon|http-server|live-server|next\s+dev)(\s|$)|--watch\b/;
+const STEP_BUDGET_MS = 6 * 60_000;
+const RUN_BUDGET_MS = 40 * 60_000;
+
 interface Graded { verdict: string; reason: string; replacement_command?: string }
 
 export async function runSteps(
@@ -82,7 +86,12 @@ export async function runSteps(
     ] });
   };
 
+  const runStart = Date.now();
   for (const step of steps) {
+    if (Date.now() - runStart > RUN_BUDGET_MS) {
+      await onResult(step, { verdict: "skipped", reasons: ["Origin ran out of time for this run before reaching this step."], output: "", execs: [] });
+      continue;
+    }
     if (isGatedStep(step)) {
       await onResult(step, { verdict: "gated", reasons: ["This step publishes, pays, deletes or sends. Origin stops here for you."], output: "", execs: [] });
       continue;
@@ -94,7 +103,9 @@ export async function runSteps(
     let graded: Graded | null = null;
     let now: Shot | undefined;
 
+    const stepStart = Date.now();
     for (let turn = 0; turn < 14 && !graded; turn++) {
+      if (Date.now() - stepStart > STEP_BUDGET_MS && turn < 11) turn = 11;
       if (turn === 11) messages.push({ role: "user", content: "You are nearly out of time for this step. Call grade_step now with what you have seen." });
       const { message } = await sparkChat(messages, TOOLS);
       messages.push({ role: "assistant", content: message.content ?? null, tool_calls: message.tool_calls });
@@ -107,7 +118,9 @@ export async function runSteps(
         const args = JSON.parse(call.function.arguments || "{}");
         if (call.function.name === "exec") {
           await emit("exec_start", { index: step.index, command: args.command });
-          const result = await sb.exec(args.command, { background: !!args.background, timeoutMs: 900_000 });
+          // Servers and watchers never exit; run them in the background whatever was asked.
+          const background = !!args.background || LONG_RUNNING.test(args.command);
+          const result = await sb.exec(args.command, { background, timeoutMs: 300_000 });
           execs.push({ command: args.command, result });
           await emit("exec_done", { index: step.index, command: args.command, exitCode: result.exitCode, output: tail(result.stdout + result.stderr, 1500) });
           messages.push({ role: "tool", tool_call_id: call.id, content: JSON.stringify({
