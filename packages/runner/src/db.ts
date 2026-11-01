@@ -12,6 +12,7 @@ async function rest(method: string, path: string, body?: unknown, prefer = "retu
     method,
     headers: { ...headers(), "Content-Type": "application/json", Prefer: prefer },
     body: body === undefined ? undefined : JSON.stringify(body),
+    signal: AbortSignal.timeout(30_000),
   });
   const text = await res.text();
   if (!res.ok) throw new Error(`Supabase ${method} ${path} ${res.status}: ${text.slice(0, 300)}`);
@@ -32,6 +33,7 @@ export async function upload(localPath: string, key: string, contentType: string
     method: "POST",
     headers: { ...headers(), "Content-Type": contentType, "x-upsert": "true" },
     body: readFileSync(localPath),
+    signal: AbortSignal.timeout(120_000),
   });
   if (!res.ok) throw new Error(`Upload ${key} ${res.status}: ${(await res.text()).slice(0, 200)}`);
   return url(`/storage/v1/object/public/media/${key}`);

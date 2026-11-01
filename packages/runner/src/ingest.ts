@@ -4,7 +4,8 @@
  * Writes a heartbeat so the site can say when it is offline.
  */
 import "./env.js";
-import { execFileSync } from "node:child_process";
+import { execFile, execFileSync } from "node:child_process";
+import { promisify } from "node:util";
 import { existsSync, mkdtempSync, rmSync, writeFileSync } from "node:fs";
 import { tmpdir } from "node:os";
 import { join } from "node:path";
@@ -26,8 +27,9 @@ async function handle(run: { id: string; source_url: string }) {
   const out = join(dir, "input.mp4");
   await event(run.id, "download_start", {});
   try {
-    execFileSync(PYTHON, ["-m", "yt_dlp", "-q", "--no-playlist", "-S", "res:480,ext:mp4", "--merge-output-format", "mp4",
-      "--match-filter", "duration<=2400", "-o", out, run.source_url], { stdio: "inherit" });
+    // Async with a time limit, so the heartbeat keeps beating during a download.
+    await promisify(execFile)(PYTHON, ["-m", "yt_dlp", "-q", "--no-playlist", "-S", "res:480,ext:mp4", "--merge-output-format", "mp4",
+      "--match-filter", "duration<=2400", "-o", out, run.source_url], { timeout: 600_000 });
   } catch { /* reported below */ }
   if (!existsSync(out)) {
     await update("runs", `id=eq.${run.id}`, { status: "failed", error: "This video is longer than 40 minutes, private, or could not be downloaded. Upload the MP4 instead.", finished_at: new Date().toISOString() });
@@ -43,10 +45,11 @@ async function handle(run: { id: string; source_url: string }) {
 
 async function loop() {
   const dir = mkdtempSync(join(tmpdir(), "origin-hb-"));
-  let beat = 0;
+  const beat = () => heartbeat(dir).catch((e) => console.error(`heartbeat: ${e}`));
+  await beat();
+  setInterval(beat, 30_000);
   for (;;) {
     try {
-      if (Date.now() - beat > 30_000) { await heartbeat(dir); beat = Date.now(); }
       const since = new Date(Date.now() - 60 * 60_000).toISOString();
       const runs = await select("runs", `select=id,source_url&status=eq.queued&video_id=not.is.null&created_at=gte.${since}&order=created_at`);
       for (const r of runs) if (!claimed.has(r.id)) await handle(r);
