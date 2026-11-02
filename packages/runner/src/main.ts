@@ -101,7 +101,7 @@ async function main() {
     const context = `Tutorial: ${ex.title}. ${ex.steps.length} steps follow, one at a time.\nNarration (for context): ${ex.transcript.slice(0, 4000)}`;
     const counts: Record<string, number> = {};
     const graded: CardStep[] = [];
-    const { lastRender } = await runSteps(ex.steps, context, sb, work, () => Browser.create(work), emit, runId, async (step, r) => {
+    const { lastRender, lastScreen } = await runSteps(ex.steps, context, sb, work, () => Browser.create(work), emit, runId, async (step, r) => {
       counts[r.verdict] = (counts[r.verdict] ?? 0) + 1;
       graded.push({ index: step.index, tLabel: step.tLabel, verdict: r.verdict, detail: step.detail, replacement: r.replacement, reason: r.reasons[0] ?? "" });
       const png = r.now?.path.endsWith(".png");
@@ -114,16 +114,18 @@ async function main() {
       console.log(`step ${step.index + 1} ${r.verdict}: ${r.reasons[0]}`);
     });
 
-    // Blender: does today's rebuild match the tutorial's final result?
+    // Does today's result match the tutorial's finished result? Blender renders, or the last
+    // screen of a visual web or code tutorial.
     let final: object | undefined;
-    if (ex.kind === "blender" && lastRender) {
+    const today = ex.kind === "blender" ? lastRender : ex.resultT !== null ? lastScreen : undefined;
+    if (today) {
       try {
         const at = ex.resultT ?? Math.max(0, duration(video) - 3);
         const endFrame = frameAt(video, at, join(work, "final_then.jpg"));
-        const cmp = await sparkCompare(endFrame, lastRender, ex.title);
+        const cmp = await sparkCompare(endFrame, today, ex.title);
         final = {
           then_url: await upload(endFrame, `${runId}/final_then.jpg`, "image/jpeg"),
-          now_url: await upload(lastRender, `${runId}/final_now.png`, "image/png"),
+          now_url: today.endsWith(".png") ? await upload(today, `${runId}/final_now.png`, "image/png") : await upload(today, `${runId}/final_now.jpg`, "image/jpeg"),
           ...cmp,
         };
         await emit("final_compare", cmp);

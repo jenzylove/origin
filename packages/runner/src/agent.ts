@@ -78,6 +78,7 @@ If a step is no longer needed today (for example a config file the tool no longe
 When a step needs the user's account, open the site in the browser and call request_login at the login page. If nobody logs in, grade the step skipped with the reason "needs your account" and carry on.
 Steps that only open an editor or desktop app on the viewer's machine (code ., atom ., subl ., open ., start .) cannot be checked here: grade them skipped with the reason "opens your editor on your machine". A missing desktop tool is never a reason for broken.
 The reason must justify the verdict: works if it runs as taught and is still current; changed only when you name what is deprecated or different today; broken only when the taught way fails today.
+When the tutorial builds something visual (a web page, a canvas, a 3D scene, an animation), finish by opening it in the browser with browser_open (for example http://localhost:5173) so today's result is seen.
 Never publish, post, pay, delete accounts, or send anything. Be fast: use few commands per step.`;
 
 const LONG_RUNNING = /\b(npm|pnpm|yarn|bun)\s+(run\s+)?(start|dev|serve|watch|preview)\b|^\s*(npx\s+)?(vite|nodemon|http-server|live-server|next\s+dev)(\s|$)|--watch\b/;
@@ -92,8 +93,9 @@ interface Graded { verdict: string; reason: string; replacement_command?: string
 export async function runSteps(
   steps: Step[], context: string, sb: Sandbox, work: string, openBrowser: () => Promise<Browser>, emit: Emit, runId: string | null,
   onResult: (s: Step, r: StepResult) => Promise<void>,
-): Promise<{ lastRender?: string }> {
+): Promise<{ lastRender?: string; lastScreen?: string }> {
   let lastRender: string | undefined;
+  let lastScreen: string | undefined;
   const messages: ChatMessage[] = [{ role: "system", content: SYSTEM }, { role: "user", content: context }];
   let browser: Browser | null = null;
   let blender: Blender | null = null;
@@ -179,6 +181,7 @@ export async function runSteps(
             : call.function.name === "browser_type" ? await browser.type(args.target, args.text, step.detail)
             : await browser.key(args.key);
           if (shot.box || !now?.box) now = shot;
+          if (!loggedIn) lastScreen = shot.after;
           await emit("browse_done", { index: step.index, note: shot.note, found: !!shot.box });
           messages.push({ role: "tool", tool_call_id: call.id, content: shot.note });
           showScreen(shot);
@@ -260,5 +263,5 @@ export async function runSteps(
     });
   }
   await browser?.close();
-  return { lastRender };
+  return { lastRender, lastScreen };
 }
