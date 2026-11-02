@@ -83,11 +83,6 @@ export default async function Home() {
             <Link href="#start" className="pill pill-dark">Run a tutorial</Link>
           </div>
           <Hero />
-          <div className="hero-foot wrap">
-            <span>Every step, run for real.</span>
-            <span className="hero-foot-mid">Muse Spark watches the video, runs it on today&apos;s software, and keeps a fix only if it ran.</span>
-            <a href="#start">[Scroll to explore]</a>
-          </div>
         </section>
 
         <section id="start" className="section start-sec wrap" data-reveal>

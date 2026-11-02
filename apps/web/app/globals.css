@@ -117,7 +117,7 @@ img { max-width: 100%; }
 @media (max-width: 680px) { .nav-links { display: none; } }
 
 /* hero */
-.hero { position: relative; display: flex; flex-direction: column; min-height: calc(100vh - 100px); padding-top: 5vh; }
+.hero { position: relative; display: flex; flex-direction: column; min-height: min(calc(100vh - 100px), 760px); padding-top: 5vh; }
 .hero-art { position: absolute; inset: 0; pointer-events: none; z-index: 1; opacity: 0; transition: opacity 0.9s var(--ease); }
 .hero-art.is-ready { opacity: 1; }
 .hero-art canvas { display: block; }
