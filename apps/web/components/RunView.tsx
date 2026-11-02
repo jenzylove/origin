@@ -307,7 +307,7 @@ function summarize(run: Run, steps: Step[], c: Record<string, number>, done: num
       if (ch) return `${ch} of ${n} steps changed since this video was made. Nothing is broken.`;
       if (final) {
         const m = final.match === "yes" ? "matches the video" : final.match === "partly" ? "partly matches the video" : "does not match the video";
-        return `${w === n ? `All ${n}` : `${w} of ${n}`} steps ran in ${run.kind === "blender" ? "today's Blender" : "today's software"}. The finished model ${m}.`;
+        return `${w === n ? `All ${n}` : `${w} of ${n}`} steps ran in ${run.kind === "blender" ? "today's Blender" : "today's software"}. The finished ${run.kind === "blender" ? "model" : "result"} ${m}.`;
       }
       if (w === n) return "Every step still works today.";
       return `${w} of ${n} steps still work today. The rest could not be checked.`;
