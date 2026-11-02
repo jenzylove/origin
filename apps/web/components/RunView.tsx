@@ -187,7 +187,7 @@ export function RunView({ initial }: { initial: Payload }) {
 
       {final ? (
         <section className="lead" data-reveal>
-          <p className="label">The finished model, then and now</p>
+          <p className="label">The finished result, then and now</p>
           <Compare
             then={{ src: final.then_url, label: "In the video", alt: "The finished model in the video" }}
             now={{ src: final.now_url, label: "Rebuilt today", alt: "Origin's rebuild in today's software" }}
