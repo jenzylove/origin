@@ -60,6 +60,8 @@ export async function POST(req: Request) {
   let body: { url?: string; upload?: boolean; key?: string };
   try { body = await req.json(); } catch { return fail("send JSON", 400); }
   if (!body || typeof body !== "object") return fail("send a JSON object", 400);
+  // Owner switch for when model credit runs out: finished runs stay browsable.
+  if (process.env.RUNS_PAUSED === "1") return fail("New runs are paused for a short while. Open any finished run on the results page", 503);
 
   try {
     if (body.upload) {
