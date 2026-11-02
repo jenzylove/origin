@@ -2,278 +2,190 @@
 
 import { useEffect, useRef } from "react";
 
-// The hero plays Origin's core moment on a real run: the 2021 frame dissolves into characters,
-// today's page resolves out of characters into the real screenshot, and SAM's outlines land.
+// Two hands reach for each other across the call to action. The left hand is drawn with the
+// commands old tutorials teach; the right hand with the fixes Origin actually ran today.
+// Silhouettes are traced from Michelangelo's Creation of Adam (public domain).
+const OLD = "npx create-react-app my-app  npm install -g webpack webpack-cli  npx tailwindcss init  @tailwind base;  ng new my-app --service-worker  node 14.17.5  npm run start  ";
+const NEW = "npm create vite@latest my-app -- --template react  npm i -D webpack webpack-cli  @import \"tailwindcss\";  ng add @angular/pwa  node 24 LTS  npm run dev  ";
+const CYCLE = 6500;
 const RAMP = " .:-=+*#%@";
-const LOOP = 9000;
-// SAM 3.1 boxes from the featured run, as fractions of each frame.
-const THEN_BOX = { x1: 234 / 640, y1: 163 / 360, x2: 314 / 640, y2: 189 / 360 };
-const NOW_BOX = { x1: 112 / 1280, y1: 408 / 720, x2: 511 / 1280, y2: 453 / 720 };
 
-interface Side {
-  x: number; y: number; w: number; h: number;
-  cols: number; rows: number; cw: number; ch: number;
-  dens: Float32Array; seed: Float32Array;
-}
-interface Layout { W: number; H: number; mobile: boolean; left: Side; right: Side; font: string; capFont: string }
+interface Cell { x: number; y: number; v: number; i: number; edge: number }
+interface Hand { cells: Cell[]; tip: { x: number; y: number } }
 
 const clamp = (v: number, a = 0, b = 1) => Math.min(b, Math.max(a, v));
-const ease = (v: number) => { const x = clamp(v); return x < 0.5 ? 4 * x * x * x : 1 - Math.pow(-2 * x + 2, 3) / 2; };
-const smooth = (a: number, b: number, v: number) => { const x = clamp((v - a) / (b - a)); return x * x * (3 - 2 * x); };
 
-function densities(img: HTMLImageElement, cols: number, rows: number): Float32Array {
+function load(src: string): Promise<HTMLImageElement> {
+  return new Promise((ok, no) => { const i = new Image(); i.onload = () => ok(i); i.onerror = no; i.src = src; });
+}
+
+/** Sample a hand mask into a grid of character cells placed on the canvas. */
+function cellsFor(img: HTMLImageElement, x0: number, y0: number, w: number, cw: number, ch: number, fadeFromLeft: boolean): Cell[] {
+  const h = (w * img.height) / img.width;
+  const cols = Math.max(4, Math.round(w / cw)), rows = Math.max(3, Math.round(h / ch));
   const c = document.createElement("canvas");
   c.width = cols; c.height = rows;
   const g = c.getContext("2d", { willReadFrequently: true })!;
-  g.imageSmoothingEnabled = true;
-  g.imageSmoothingQuality = "high";
   g.drawImage(img, 0, 0, cols, rows);
-  const px = g.getImageData(0, 0, cols, rows).data;
-  const lum = new Float32Array(cols * rows);
-  for (let i = 0; i < lum.length; i++) lum[i] = (0.2126 * px[i * 4]! + 0.7152 * px[i * 4 + 1]! + 0.0722 * px[i * 4 + 2]!) / 255;
-  // Darkness alone turns big flat areas into slabs; edges keep the page's structure readable.
-  const out = new Float32Array(cols * rows);
+  const d = g.getImageData(0, 0, cols, rows).data;
+  const out: Cell[] = [];
+  let n = 0;
   for (let r = 0; r < rows; r++) {
-    for (let c = 0; c < cols; c++) {
-      const i = r * cols + c, l = lum[i]!;
-      const gx = Math.abs((lum[i + (c < cols - 1 ? 1 : 0)] ?? l) - (lum[i - (c > 0 ? 1 : 0)] ?? l));
-      const gy = Math.abs((lum[i + (r < rows - 1 ? cols : 0)] ?? l) - (lum[i - (r > 0 ? cols : 0)] ?? l));
-      const edge = Math.min(1, (gx + gy) * 2.2);
-      out[i] = clamp((1 - l) * 0.5 + edge * 0.85 - 0.04);
+    for (let k = 0; k < cols; k++) {
+      const v = d[(r * cols + k) * 4]! / 255;
+      if (v < 0.12) continue;
+      const t = k / (cols - 1);
+      out.push({ x: x0 + k * cw, y: y0 + r * ch, v, i: n++, edge: fadeFromLeft ? t : 1 - t });
     }
   }
   return out;
 }
 
-function seeds(n: number, salt: number): Float32Array {
-  const s = new Float32Array(n);
-  for (let i = 0; i < n; i++) { const v = Math.sin((i + 1) * 12.9898 + salt * 78.233) * 43758.5453; s[i] = v - Math.floor(v); }
-  return s;
+/** Scatter characters beyond the arm's cut end so it dissolves toward the edge of the frame. */
+function dissolve(from: Cell[], towardX: number, ch: number, cw: number, seed: number): Cell[] {
+  if (!from.length) return [];
+  const xs = from.map((c) => c.x);
+  const edgeX = towardX > from[0]!.x ? Math.max(...xs) : Math.min(...xs);
+  const rim = from.filter((c) => Math.abs(c.x - edgeX) < cw * 1.5);
+  const out: Cell[] = [];
+  let s = seed;
+  const rnd = () => ((s = (s * 9301 + 49297) % 233280) / 233280);
+  const span = Math.abs(towardX - edgeX);
+  for (const c of rim) {
+    for (let step = 1; step * cw < span; step++) {
+      const t = (step * cw) / span;
+      if (rnd() > 0.9 - t * 0.85) continue;
+      out.push({ x: edgeX + Math.sign(towardX - edgeX) * step * cw, y: c.y + (rnd() - 0.5) * ch * 2 * t, v: c.v * (1 - t), i: c.i + step, edge: 1 - t });
+    }
+  }
+  return out;
 }
 
 export function Hero() {
-  const wrap = useRef<HTMLDivElement>(null);
   const canvas = useRef<HTMLCanvasElement>(null);
+  const wrap = useRef<HTMLDivElement>(null);
 
   useEffect(() => {
-    const el = canvas.current!, host = wrap.current!;
-    const ctx = el.getContext("2d")!;
+    const cv = canvas.current, box = wrap.current;
+    const hero = box?.parentElement;
+    if (!cv || !box || !hero) return;
+    const ctx = cv.getContext("2d")!;
+    let alive = true, raf = 0, visible = true, start = performance.now();
+    let left: Hand | null = null, right: Hand | null = null;
+    let font = "", W = 0, H = 0, mobile = false, dpr = 1;
+    let imgs: [HTMLImageElement, HTMLImageElement] | null = null;
     const reduce = window.matchMedia("(prefers-reduced-motion: reduce)");
-    let thenImg: HTMLImageElement | null = null, nowImg: HTMLImageElement | null = null;
-    let L: Layout | null = null;
-    let nowLayer: HTMLCanvasElement | null = null, thenLayer: HTMLCanvasElement | null = null;
-    let colors = { ink: "#111", grey: "#8A8A86", then: "#E8A33D", now: "#2FB67C" };
-    let raf = 0, visible = true, start = performance.now(), dpr = 1;
-
-    const readColors = () => {
-      const cs = getComputedStyle(host);
-      colors = {
-        ink: cs.getPropertyValue("--ascii").trim() || colors.ink,
-        grey: cs.getPropertyValue("--grey").trim() || colors.grey,
-        then: cs.getPropertyValue("--changed").trim() || colors.then,
-        now: cs.getPropertyValue("--works").trim() || colors.now,
-      };
-    };
+    const dark = window.matchMedia("(prefers-color-scheme: dark)");
 
     const layout = () => {
-      if (!thenImg || !nowImg) return;
-      const W = host.clientWidth;
-      const mobile = W < 760;
-      const imgW = mobile ? W * 0.84 : W * 0.42;
-      const imgH = imgW * 9 / 16;
-      const cap = mobile ? 34 : 40;
-      const gapY = mobile ? 30 : 0;
-      const cols = mobile ? 78 : Math.round(clamp(imgW / 5.6, 80, 130));
-      const cw = imgW / cols, ch = cw * 1.6;
-      const rows = Math.floor(imgH / ch);
-      const make = (x: number, y: number, img: HTMLImageElement, salt: number): Side => ({
-        x, y, w: imgW, h: imgH, cols, rows, cw, ch, dens: densities(img, cols, rows), seed: seeds(cols * rows, salt),
-      });
-      const left = make(-W * (mobile ? 0.07 : 0.04), 0, thenImg, 1);
-      const right = make(mobile ? W - imgW + W * 0.07 : W * 0.62, mobile ? imgH + cap + gapY : 0, nowImg, 2);
-      const H = mobile ? right.y + imgH + cap : imgH + cap;
-      const monoFamily = getComputedStyle(host).getPropertyValue("--font-mono").trim() || "monospace";
-      L = { W, H, mobile, left, right, font: `500 ${(ch * 0.98).toFixed(2)}px ${monoFamily}`, capFont: `500 ${mobile ? 11 : 12}px ${monoFamily}` };
-      dpr = Math.min(2, window.devicePixelRatio || 1);
-      el.width = Math.round(W * dpr); el.height = Math.round(H * dpr);
-      el.style.height = `${H}px`;
-      // Today's screenshot, with its centre side feathered so it reaches in like the old frame.
-      nowLayer = document.createElement("canvas");
-      nowLayer.width = Math.round(imgW * dpr); nowLayer.height = Math.round(imgH * dpr);
-      const g = nowLayer.getContext("2d")!;
-      g.drawImage(nowImg, 0, 0, nowLayer.width, nowLayer.height);
-      g.globalCompositeOperation = "destination-in";
-      const grad = g.createLinearGradient(0, 0, nowLayer.width * 0.16, 0);
-      grad.addColorStop(0, "rgba(0,0,0,0)");
-      grad.addColorStop(1, "rgba(0,0,0,1)");
-      g.fillStyle = grad;
-      g.fillRect(0, 0, nowLayer.width, nowLayer.height);
-      // A faint ghost of the real 2021 frame under its characters, fading toward the centre.
-      thenLayer = document.createElement("canvas");
-      thenLayer.width = nowLayer.width; thenLayer.height = nowLayer.height;
-      const h = thenLayer.getContext("2d")!;
-      h.filter = window.matchMedia("(prefers-color-scheme: dark)").matches ? "sepia(0.35) saturate(0.7) brightness(0.8)" : "sepia(0.35) saturate(0.7)";
-      h.drawImage(thenImg, 0, 0, thenLayer.width, thenLayer.height);
-      h.filter = "none";
-      h.globalCompositeOperation = "destination-in";
-      const fade = h.createLinearGradient(0, 0, thenLayer.width, 0);
-      fade.addColorStop(0, "rgba(0,0,0,1)");
-      fade.addColorStop(0.5, "rgba(0,0,0,0.9)");
-      fade.addColorStop(0.85, "rgba(0,0,0,0)");
-      h.fillStyle = fade;
-      h.fillRect(0, 0, thenLayer.width, thenLayer.height);
+      if (!imgs) return;
+      const r = hero.getBoundingClientRect();
+      W = r.width; H = r.height; dpr = Math.min(2, window.devicePixelRatio || 1);
+      cv.width = Math.round(W * dpr); cv.height = Math.round(H * dpr);
+      cv.style.width = `${W}px`; cv.style.height = `${H}px`;
+      mobile = W < 760;
+      const pill = hero.querySelector(".hero-copy .pill")?.getBoundingClientRect();
+      const px = pill ? pill.left - r.left + pill.width / 2 : W / 2;
+      const py = pill ? pill.top - r.top + pill.height / 2 : H * 0.6;
+      const cw = mobile ? 4 : 5.4, ch = mobile ? 6.2 : 8.4;
+      font = `600 ${mobile ? 6.4 : 8.8}px "Geist Mono", ui-monospace, monospace`;
+      const [L, R] = imgs;
+      // Fingertips sit either side of the button, at its height (below it on phones).
+      const gap = mobile ? 26 : (pill?.width ?? 180) / 2 + 46;
+      const tipY = mobile ? py + 120 : py + 36;
+      const lw = mobile ? W * 0.7 : Math.min(W * 0.6, 980);
+      const lh = (lw * L.height) / L.width;
+      const lx = px - gap - lw, ly = tipY - lh * 0.36; // Adam's index finger: right edge, a third down
+      const rw = ((lw * R.width) / L.width) * 1.06;
+      const rh = (rw * R.height) / R.width;
+      const rx = px + gap, ry = tipY - rh * 0.42; // the pointing finger: left edge
+      const lc = cellsFor(L, lx, ly, lw, cw, ch, true);
+      const rc = cellsFor(R, rx, ry, rw, cw, ch, false);
+      left = { cells: [...dissolve(lc, 0, ch, cw, 7), ...lc], tip: { x: px - gap, y: tipY } };
+      right = { cells: [...rc, ...dissolve(rc, W, ch, cw, 11)], tip: { x: px + gap, y: tipY } };
     };
 
-    const strokeProgress = (x: number, y: number, w: number, h: number, p: number, color: string, lw: number) => {
-      if (p <= 0) return;
-      const per = 2 * (w + h);
-      let left = per * clamp(p);
-      ctx.strokeStyle = color; ctx.lineWidth = lw; ctx.lineJoin = "round"; ctx.lineCap = "round";
-      ctx.beginPath(); ctx.moveTo(x, y);
-      const segs: [number, number, number][] = [[w, 1, 0], [h, 0, 1], [w, -1, 0], [h, 0, -1]];
-      let cx = x, cy = y;
-      for (const [len, dx, dy] of segs) {
-        const d = Math.min(len, left);
-        cx += dx * d; cy += dy * d; ctx.lineTo(cx, cy);
-        left -= d; if (left <= 0) break;
-      }
-      ctx.stroke();
-    };
-
-    const caption = (text: string, x: number, y: number, align: "left" | "right", color: string, a: number) => {
-      ctx.globalAlpha = a;
-      ctx.font = L!.capFont; ctx.textBaseline = "middle"; ctx.textAlign = align;
-      const tw = ctx.measureText(text).width;
-      const dotX = align === "left" ? x + 4 : x - tw - 14;
-      ctx.fillStyle = color; ctx.beginPath(); ctx.arc(dotX, y, 3.5, 0, Math.PI * 2); ctx.fill();
-      ctx.fillStyle = colors.grey;
-      ctx.fillText(text, align === "left" ? x + 16 : x, y);
-      ctx.textAlign = "left";
-    };
-
-    const draw = (t: number) => {
-      if (!L || !nowLayer) return;
-      const { left: A, right: B } = L;
+    const draw = (now: number) => {
+      if (!left || !right) return;
+      const still = reduce.matches;
+      const t = still ? 0.35 : ((now - start) % CYCLE) / CYCLE;
+      const breathe = still ? 0 : Math.sin(((now - start) / CYCLE) * Math.PI * 2) * (mobile ? 2 : 5);
       ctx.setTransform(dpr, 0, 0, dpr, 0, 0);
-      ctx.clearRect(0, 0, L.W, L.H);
-      ctx.font = L.font; ctx.textBaseline = "top"; ctx.fillStyle = colors.ink;
+      ctx.clearRect(0, 0, W, H);
+      ctx.font = font;
+      ctx.textBaseline = "top";
+      const ink = dark.matches ? [242, 242, 239] : [17, 17, 17];
+      const warm = dark.matches ? [205, 178, 132] : [128, 98, 58];
+      const tick = Math.floor((now - start) / 140);
 
-      // Then: characters dissolve and drift toward the centre, from the centre side inward.
-      const back = smooth(8200, 9000, t);
-      const dis = ease((t - 700) / 3800) * (1 - back);
-      const front = dis * 0.46;
-      if (thenLayer) {
-        ctx.globalAlpha = 0.5 * (1 - dis * 0.6);
-        ctx.drawImage(thenLayer, A.x, A.y, A.w, A.h);
-      }
-      for (let r = 0; r < A.rows; r++) {
-        for (let c = 0; c < A.cols; c++) {
-          const i = r * A.cols + c, d = A.dens[i]!;
-          if (d < 0.06) continue;
-          const s = A.seed[i]!, nx = c / A.cols;
-          const fromCentre = L.mobile ? 1 - nx : 1 - nx;
-          if (nx > 0.72 && s < (nx - 0.72) / 0.28) continue; // ragged reach, like fingertips
-          const a = clamp((front + (s - 0.5) * 0.18 - fromCentre) / 0.1);
-          const alpha = (0.32 + 0.6 * d) * (1 - a);
-          if (alpha < 0.02) continue;
-          const g = RAMP[Math.max(1, Math.min(9, Math.round(d * 9 * (1 - a * 0.7))))]!;
-          const dx = a * a * (30 + s * 140);
-          const dy = Math.sin(s * 40 + t / 700) * a * 8;
-          ctx.globalAlpha = alpha;
-          ctx.fillText(g, A.x + c * A.cw + dx, A.y + r * A.ch + dy);
+      // Density characters give the sculpted form; a few cells shimmer so the hands feel alive.
+      const paint = (hand: Hand, _text: string, rgb: number[], dx: number, flash: number) => {
+        for (const c of hand.cells) {
+          const jitter = !still && (c.i * 7 + tick) % 23 === 0 ? 1 : 0;
+          const ch = RAMP[Math.min(RAMP.length - 1, Math.max(1, Math.round(c.v * (RAMP.length - 1)) - jitter))]!;
+
+          const glow = flash * clamp(1 - Math.hypot(c.x - hand.tip.x, c.y - hand.tip.y) / 90);
+          const a = clamp((0.55 + c.v * 0.45) * (0.2 + c.edge * 0.8));
+          ctx.fillStyle = glow > 0.05 ? `rgba(47,182,124,${clamp(a + glow)})` : `rgba(${rgb[0]},${rgb[1]},${rgb[2]},${a})`;
+          ctx.fillText(ch, c.x + dx, c.y);
         }
-      }
+      };
 
-      // Today: characters arrive from the centre, settle, then give way to the real screenshot.
-      const fadeOut = 1 - smooth(8200, 8800, t);
-      const img = ease((t - 3500) / 1400);
-      for (let r = 0; r < B.rows; r++) {
-        for (let c = 0; c < B.cols; c++) {
-          const i = r * B.cols + c, d = B.dens[i]!;
-          if (d < 0.05) continue;
-          const s = B.seed[i]!, nx = c / B.cols;
-          const ta = 600 + nx * 1700 + s * 700;
-          const k = clamp((t - ta) / 550);
-          if (k <= 0) continue;
-          const keep = 1 - img * smooth(0.03, 0.15, nx);
-          const alpha = (0.3 + 0.6 * d) * k * keep * fadeOut;
-          if (alpha < 0.02) continue;
-          const settled = k >= 1;
-          const g = settled ? RAMP[Math.max(1, Math.min(9, Math.round(d * 9)))]! : RAMP[1 + Math.floor(((s * 997 + t / 60) % 9))]!;
-          const dx = -(1 - ease(k)) * (50 + s * 90);
-          ctx.globalAlpha = alpha;
-          ctx.fillText(g, B.x + c * B.cw + dx, B.y + r * B.ch);
-        }
+      // A spark crosses the gap from the old hand to the new one, and today's fingertip lights up.
+      const travel = clamp((t - 0.45) / 0.18);
+      const arrive = clamp(1 - Math.abs(t - 0.68) / 0.12);
+      paint(left, OLD, warm, breathe, clamp(1 - Math.abs(t - 0.42) / 0.06) * 0.6);
+      paint(right, NEW, ink, -breathe, arrive);
+      ctx.font = `${mobile ? 10 : 12}px "Geist Mono", ui-monospace, monospace`;
+      ctx.textBaseline = "alphabetic";
+      ctx.fillStyle = `rgba(${warm[0]},${warm[1]},${warm[2]},0.9)`;
+      ctx.textAlign = "right";
+      ctx.fillText(mobile ? "2021: npx create-react-app" : "2021 tutorial:  npx create-react-app my-app", left.tip.x - 8, left.tip.y + (mobile ? 70 : 150));
+      ctx.fillStyle = `rgba(${ink[0]},${ink[1]},${ink[2]},0.85)`;
+      ctx.textAlign = "left";
+      ctx.fillText(mobile ? "today: npm create vite" : "Origin, today:  npm create vite@latest", right.tip.x + (mobile ? 8 : 60), right.tip.y + (mobile ? 92 : 150));
+      ctx.textAlign = "start";
+      if (travel > 0 && travel < 1 && !still) {
+        const x0 = left.tip.x + breathe, x1 = right.tip.x - breathe;
+        const x = x0 + (x1 - x0) * travel;
+        const y = left.tip.y - Math.sin(travel * Math.PI) * 10;
+        const g = ctx.createRadialGradient(x, y, 0, x, y, 16);
+        g.addColorStop(0, "rgba(47,182,124,0.95)");
+        g.addColorStop(1, "rgba(47,182,124,0)");
+        ctx.fillStyle = g;
+        ctx.beginPath(); ctx.arc(x, y, 16, 0, Math.PI * 2); ctx.fill();
       }
-      if (img > 0) {
-        ctx.globalAlpha = img * fadeOut;
-        ctx.drawImage(nowLayer, B.x, B.y, B.w, B.h);
-      }
-
-      // SAM outlines: amber on the old button, green on today's.
-      const tb = { x: A.x + THEN_BOX.x1 * A.w - 3, y: A.y + THEN_BOX.y1 * A.h - 3, w: (THEN_BOX.x2 - THEN_BOX.x1) * A.w + 6, h: (THEN_BOX.y2 - THEN_BOX.y1) * A.h + 6 };
-      ctx.globalAlpha = 1 - back;
-      strokeProgress(tb.x, tb.y, tb.w, tb.h, ease((t - 300) / 900), colors.then, 2);
-      const nb = { x: B.x + NOW_BOX.x1 * B.w - 4, y: B.y + NOW_BOX.y1 * B.h - 4, w: (NOW_BOX.x2 - NOW_BOX.x1) * B.w + 8, h: (NOW_BOX.y2 - NOW_BOX.y1) * B.h + 8 };
-      const np = ease((t - 5000) / 900);
-      ctx.globalAlpha = fadeOut;
-      strokeProgress(nb.x, nb.y, nb.w, nb.h, np, colors.now, 2.5);
-      if (np >= 1) {
-        const pulse = (Math.sin((t - 5900) / 260) + 1) / 2;
-        ctx.globalAlpha = fadeOut * 0.25 * pulse;
-        ctx.strokeStyle = colors.now; ctx.lineWidth = 6;
-        ctx.strokeRect(nb.x - 3, nb.y - 3, nb.w + 6, nb.h + 6);
-      }
-
-      // Captions under each side, set toward the centre.
-      const capY = L.mobile ? 17 : 22;
-      caption("2021, in the video", L.mobile ? A.x + A.w : A.x + A.w, A.y + A.h + capY, "right", colors.then, 1 - back * 0.5);
-      caption("Today, run live", B.x, B.y + B.h + capY, "left", colors.now, Math.max(0.35, smooth(600, 1400, t)) * Math.max(0.35, fadeOut));
-      ctx.globalAlpha = 1;
     };
 
-    const frame = (now: number) => {
-      raf = 0;
-      if (!visible) return;
-      draw((now - start) % LOOP);
-      raf = requestAnimationFrame(frame);
-    };
-    const run = () => {
-      cancelAnimationFrame(raf); raf = 0;
-      if (!L) return;
-      if (reduce.matches) { draw(7200); return; }
-      if (visible) raf = requestAnimationFrame(frame);
-    };
-
-    const load = (src: string) => new Promise<HTMLImageElement>((res, rej) => {
-      const i = new Image(); i.onload = () => res(i); i.onerror = rej; i.src = src;
-    });
-
-    let alive = true;
-    void Promise.all([load("/hero/then.jpg"), load("/hero/now.jpg"), document.fonts?.ready]).then(([a, b]) => {
+    const loop = (now: number) => {
       if (!alive) return;
-      thenImg = a; nowImg = b;
-      readColors(); layout(); start = performance.now(); run();
-      host.classList.add("is-ready");
-    }).catch(() => host.classList.add("is-failed"));
+      if (visible) draw(now);
+      if (!reduce.matches) raf = requestAnimationFrame(loop);
+    };
 
-    const ro = new ResizeObserver(() => { const w = host.clientWidth; if (L && Math.abs(w - L.W) < 2) return; layout(); run(); });
-    ro.observe(host);
-    const io = new IntersectionObserver(([e]) => { visible = Boolean(e?.isIntersecting); run(); });
-    io.observe(host);
-    const scheme = window.matchMedia("(prefers-color-scheme: dark)");
-    const onScheme = () => { readColors(); layout(); run(); };
-    scheme.addEventListener("change", onScheme);
-    reduce.addEventListener("change", run);
+    const ro = new ResizeObserver(() => { layout(); draw(performance.now()); });
+    const io = new IntersectionObserver(([e]) => { visible = !!e?.isIntersecting; });
+    Promise.all([load("/hero/hand-left.png"), load("/hero/hand-right.png"), document.fonts?.ready]).then(([L, R]) => {
+      if (!alive) return;
+      imgs = [L as HTMLImageElement, R as HTMLImageElement];
+      layout();
+      box.classList.add("is-ready");
+      start = performance.now();
+      ro.observe(hero); io.observe(hero);
+      raf = requestAnimationFrame(loop);
+    }).catch(() => {});
+    const restart = () => { cancelAnimationFrame(raf); raf = requestAnimationFrame(loop); };
+    reduce.addEventListener("change", restart);
+    dark.addEventListener("change", restart);
     return () => {
       alive = false; cancelAnimationFrame(raf); ro.disconnect(); io.disconnect();
-      scheme.removeEventListener("change", onScheme); reduce.removeEventListener("change", run);
+      reduce.removeEventListener("change", restart); dark.removeEventListener("change", restart);
     };
   }, []);
 
   return (
     <div className="hero-art" ref={wrap}>
-      <canvas ref={canvas} role="img" aria-label="A 2021 tutorial frame of nodejs.org with its download button outlined in amber dissolves, while today's nodejs.org resolves with its new Get Node.js button outlined in green." />
+      <canvas ref={canvas} role="img" aria-label="Two hands made of text reach for each other: the left is drawn with old tutorial commands, the right with the fixes Origin ran today, and a spark crosses between them." />
     </div>
   );
 }

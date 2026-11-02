@@ -1,5 +1,6 @@
 import Link from "next/link";
-import { listRuns, stepsByRun } from "@/lib/data";
+import { getSteps, listRuns, stepsByRun } from "@/lib/data";
+import { KNOWN_MISSES } from "@/lib/misses";
 import { Footer, Header } from "@/components/Chrome";
 import { StartBox } from "@/components/StartBox";
 import { Hero } from "@/components/Hero";
@@ -27,6 +28,20 @@ const HOW = [
 
 const CREATOR_RUN = "0804bd40-d22e-4e79-a5ac-0902a130c164";
 
+// The comment Origin wrote for the creator of a real run, shown as it would look pinned.
+async function creatorNote() {
+  try {
+    const st = await getSteps(CREATOR_RUN);
+    const s = st.find((x) => x.verdict === "broken" && !(x.reasons?.[0] ?? "").startsWith("Origin could not")) ?? st.find((x) => x.verdict === "changed");
+    if (!s) return null;
+    const why = (s.reasons?.[0] ?? "").split(/[;.]\s/)[0];
+    const fix = s.replacement ? `Use: ${s.replacement.split("\n")[0]}` : `${why}.`;
+    return { at: s.t_label, text: `Heads up for anyone following along today: at ${s.t_label}, ${s.verdict === "broken" ? "this step no longer works" : "this step has changed"}. ${fix} Checked by actually running it on Origin.` };
+  } catch {
+    return null;
+  }
+}
+
 async function proof() {
   try {
     const runs = (await listRuns()).filter((r) => r.status === "done");
@@ -38,14 +53,21 @@ async function proof() {
         if (s.verdict === "changed" || s.verdict === "broken") flagged++;
       }
     }
-    return runs.length ? { runs: runs.length, checked, flagged } : null;
+    // One row per tutorial (the latest finished run of each), every one linked.
+    const seen = new Set<string>();
+    const list = runs.filter((r) => { const k = r.title ?? r.id; if (seen.has(k)) return false; seen.add(k); return true; }).map((r) => {
+      const st = byRun[r.id] ?? [];
+      const n = (v: string) => st.filter((s) => s.verdict === v).length;
+      return { id: r.id, title: r.title ?? "Untitled tutorial", kind: r.kind ?? "", works: n("works"), changed: n("changed"), broken: n("broken"), skipped: n("skipped") + n("gated") };
+    });
+    return runs.length ? { runs: runs.length, checked, flagged, list } : null;
   } catch {
     return null;
   }
 }
 
 export default async function Home() {
-  const stats = await proof();
+  const [stats, note] = await Promise.all([proof(), creatorNote()]);
 
   return (
     <>
@@ -130,13 +152,30 @@ export default async function Home() {
         <section id="creators" className="section wrap creators">
           <div className="creators-copy" data-reveal>
             <p className="label">For creators</p>
-            <h2 className="h2"><span className="tone">Your video breaks at 01:08.</span> Pin the fix.</h2>
-            <p className="body-lg">Creators get the exact second a step stopped working, why, and the fix, plus a card drawn by Muse Image to post. Your viewers stop getting stuck.</p>
-            <Link href={`/run/${CREATOR_RUN}/creator`} className="pill pill-line">See a creator page</Link>
+            <h2 className="h2"><span className="tone">Made a tutorial?</span> Know the second it broke.</h2>
+            <p className="body-lg">Your old videos keep getting views long after the software moved on, and viewers get stuck in the comments. Origin runs your video, finds the exact step that stopped working, and writes the note for you.</p>
+            <ol className="creator-steps">
+              <li><span><b>Where it breaks.</b> The exact timestamp, and why.</span></li>
+              <li><span><b>A comment to pin.</b> The fix in plain words, ready to paste.</span></li>
+              <li><span><b>A card to post.</b> Drawn by Muse Image, with the exact command.</span></li>
+            </ol>
+            <Link href={`/run/${CREATOR_RUN}/creator`} className="pill pill-line">See a real creator page</Link>
           </div>
-          <figure className="creators-card" data-reveal>
-            <img src="/hero/card.png" alt="A step card drawn by Muse Image: step 8 at 01:08 is broken today, with the old command and why it fails" loading="lazy" />
-          </figure>
+          <div className="creators-demo" data-reveal>
+            {note && (
+              <div className="yt-comment">
+                <span className="yt-pin">Pinned by the creator</span>
+                <div className="yt-row">
+                  <span className="yt-avatar" aria-hidden="true">T</span>
+                  <p>{note.text}</p>
+                </div>
+              </div>
+            )}
+            <figure className="creators-card">
+              <img src="/hero/card.png" alt="A step card drawn by Muse Image: step 8 at 01:08 is broken today, with the old command and why it fails" loading="lazy" />
+              <figcaption>The comment and the card Origin made for a 2021 Tailwind tutorial. Both come from a real run.</figcaption>
+            </figure>
+          </div>
         </section>
 
         <section className="section wrap proof" data-reveal>
@@ -148,6 +187,28 @@ export default async function Home() {
               <div><dt>Steps run for real</dt><dd><CountUp value={stats.checked} /></dd></div>
               <div><dt>Steps changed or broken</dt><dd><CountUp value={stats.flagged} /></dd></div>
             </dl>
+          )}
+          {stats && (
+            <ol className="run-list">
+              {stats.list.map((r) => {
+                const total = r.works + r.changed + r.broken + r.skipped || 1;
+                const kind = r.kind === "code" ? "Terminal" : r.kind === "web" ? "Website" : r.kind === "blender" ? "Blender" : r.kind === "account" ? "Account" : "";
+                return (
+                  <li key={r.id}>
+                    <Link href={`/run/${r.id}`}>
+                      <span className="rl-title">{r.title}{KNOWN_MISSES[r.id] ? <em className="rl-miss"> known miss</em> : null}</span>
+                      <span className="rl-kind">{kind}</span>
+                      <span className="rl-bar" aria-hidden="true">
+                        <i className="w" style={{ width: `${(r.works / total) * 100}%` }} />
+                        <i className="c" style={{ width: `${(r.changed / total) * 100}%` }} />
+                        <i className="b" style={{ width: `${(r.broken / total) * 100}%` }} />
+                      </span>
+                      <span className="rl-sum">{r.broken ? `${r.broken} broken` : r.changed ? `${r.changed} changed` : "All work"}</span>
+                    </Link>
+                  </li>
+                );
+              })}
+            </ol>
           )}
           <Link href="/results" className="arrow-link">See every run, misses included</Link>
         </section>

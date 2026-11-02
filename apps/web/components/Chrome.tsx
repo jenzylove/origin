@@ -1,12 +1,17 @@
 import Link from "next/link";
 import { MISSES_URL } from "@/lib/misses";
 
-// The mark: a ring (the old video) with a dot settling inside it (today's run).
+// The mark: a play button. Its back half is made of dots (the old video), its front half is
+// solid (today's run), and a green spark sits at the tip where the old becomes the new.
+const MARK_DOTS: Array<[number, number]> = [];
+for (const x of [5, 8, 11]) for (let y = 4 + (x - 5) * 0.62; y <= 28 - (x - 5) * 0.62; y += 3) MARK_DOTS.push([x, y]);
+
 export function Mark({ size = 22 }: { size?: number }) {
   return (
-    <svg className="mark" width={size} height={size} viewBox="0 0 24 24" aria-hidden="true">
-      <circle cx="12" cy="12" r="8.5" fill="none" stroke="currentColor" strokeWidth="2.4" />
-      <circle className="mark-dot" cx="12" cy="12" r="3" fill="var(--works)" />
+    <svg className="mark" width={size} height={size} viewBox="0 0 32 32" aria-hidden="true">
+      {MARK_DOTS.map(([x, y]) => <circle key={`${x}-${y}`} cx={x} cy={y} r="1.15" fill="currentColor" opacity="0.55" />)}
+      <path d="M13 9.2 L27.5 16 L13 22.8 Z" fill="currentColor" />
+      <circle cx="28.4" cy="16" r="2.6" fill="var(--works)" />
     </svg>
   );
 }
@@ -63,7 +68,9 @@ export function Footer() {
         </div>
         <div className="footer-base">
           <span>Built for the Meta Global AI Developer Hackathon, 2026.</span>
+          <span>Every run is real and public.</span>
         </div>
+        <p className="footer-word" aria-hidden="true">Origin</p>
       </div>
     </footer>
   );

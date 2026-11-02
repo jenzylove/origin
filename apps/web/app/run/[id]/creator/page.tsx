@@ -44,10 +44,17 @@ export default async function CreatorPage({ params }: { params: Promise<{ id: st
         <p className="body-lg creator-lede">
           {failed
             ? "Origin could not finish checking this tutorial, so there is nothing to tell your viewers yet."
-            : `Origin checked ${ranCount} of ${all.length} steps on today's software${checked ? ` on ${checked}` : ""}.`}{" "}
-          {steps.length ? `${steps.length} ${steps.length > 1 ? "steps need" : "step needs"} a note for your viewers.` : ""}{" "}
+            : `This page is for the person who made this video. Origin ran ${ranCount} of its ${all.length} steps on today's software${checked ? ` on ${checked}` : ""}.`}{" "}
+          {steps.length ? `For each step that changed, it wrote a comment you can pin under the video and drew a card you can post, so viewers stop getting stuck.` : ""}{" "}
           <Link href={`/run/${id}`}>See the full run</Link>.
         </p>
+        {steps.length > 0 && (
+          <ol className="creator-steps creator-key">
+            <li><span><b>Where it breaks.</b> The timestamp in your video.</span></li>
+            <li><span><b>A comment to pin.</b> Press Copy and paste it under your video.</span></li>
+            <li><span><b>A card to post.</b> Download it for your community tab or socials.</span></li>
+          </ol>
+        )}
 
         <div className="creator-list">
           {steps.map((s) => {
