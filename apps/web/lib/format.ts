@@ -32,7 +32,7 @@ export function shortDate(iso: string): string {
 }
 
 export function runName(run: Pick<Run, "title" | "source_url" | "id">): string {
-  return run.title || run.source_url || `Run ${run.id.slice(0, 8)}`;
+  return run.title || "Untitled tutorial";
 }
 
 export function youtubeStart(t: number): number {

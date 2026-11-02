@@ -1,10 +1,11 @@
 import Link from "next/link";
-import { getSteps, latestDoneRun } from "@/lib/data";
-import { runName } from "@/lib/format";
+import { listRuns, stepsByRun } from "@/lib/data";
 import { Footer, Header } from "@/components/Chrome";
 import { StartBox } from "@/components/StartBox";
-import { StepRow } from "@/components/StepRow";
-import { Tape } from "@/components/Tape";
+import { Hero } from "@/components/Hero";
+import { ZoomPair } from "@/components/ZoomPair";
+import { Compare } from "@/components/Compare";
+import { CountUp, PointVisual, RepairVisual, RunVisual, WatchVisual } from "@/components/HowVisuals";
 
 export const dynamic = "force-dynamic";
 
@@ -17,96 +18,154 @@ const FAQ: [string, string][] = [
   ["How long does a run take?", "Usually 10 to 25 minutes: Muse Spark watches the video first, then each step runs in turn. The run page shows exactly where it is."],
 ];
 
+const HOW = [
+  { n: "01", name: "Watch", text: "Muse Spark reads the video and its narration. Muse Voice Transcribe catches steps that are only spoken.", V: WatchVisual },
+  { n: "02", name: "Point", text: "SAM 3.1 outlines what was clicked in the old video, then finds the same thing on today's screen.", V: PointVisual },
+  { n: "03", name: "Run", text: "Every step runs for real, in a container, a browser or today's Blender, and is marked works, changed or broken.", V: RunVisual },
+  { n: "04", name: "Repair", text: "A fix is kept only if it runs. Otherwise the step stays broken.", V: RepairVisual },
+];
+
+const CREATOR_RUN = "0804bd40-d22e-4e79-a5ac-0902a130c164";
+
+async function proof() {
+  try {
+    const runs = (await listRuns()).filter((r) => r.status === "done");
+    const byRun = await stepsByRun(runs.map((r) => r.id));
+    let checked = 0, flagged = 0;
+    for (const steps of Object.values(byRun)) {
+      for (const s of steps) {
+        if (s.verdict === "works" || s.verdict === "changed" || s.verdict === "broken") checked++;
+        if (s.verdict === "changed" || s.verdict === "broken") flagged++;
+      }
+    }
+    return runs.length ? { runs: runs.length, checked, flagged } : null;
+  } catch {
+    return null;
+  }
+}
+
 export default async function Home() {
-  const run = await latestDoneRun().catch(() => null);
-  const steps = run ? await getSteps(run.id).catch(() => []) : [];
+  const stats = await proof();
 
   return (
     <>
       <Header />
       <main>
-        <section className="wrap section">
-          <h1 className="display">Tutorials age. <em>Origin</em> runs them today.</h1>
-          <p className="lede">
-            Paste a tutorial video. Origin runs every step on today&apos;s software, shows where it breaks, and gives you the version that works now.
-          </p>
-          <StartBox />
+        <section className="hero">
+          <div className="hero-copy wrap">
+            <h1 className="hero-title">
+              <span className="tone">Tutorials age.</span>
+              <span>Origin runs them today.</span>
+            </h1>
+            <p className="hero-sub">Paste a tutorial video. Origin runs every step on today&apos;s software and shows you exactly what changed.</p>
+            <Link href="#start" className="pill pill-dark">Run a tutorial</Link>
+          </div>
+          <Hero />
+          <div className="hero-foot wrap">
+            <span>Every step, run for real.</span>
+            <span className="hero-foot-mid">Muse Spark watches the video, runs it on today&apos;s software, and keeps a fix only if it ran.</span>
+            <a href="#start">[Scroll to explore]</a>
+          </div>
         </section>
 
-        {run && steps.length > 0 && (
-          <section className="wrap" style={{ paddingTop: 64 }}>
-            <p className="eyebrow">Latest finished run</p>
-            <h2 className="h2" style={{ fontSize: "clamp(28px, 4.5vw, 48px)" }}>
-              <Link href={`/run/${run.id}`} style={{ textDecoration: "none" }}>{runName(run)}</Link>
-            </h2>
-            <Tape steps={steps} />
-            {steps.slice(0, 4).map((s) => <StepRow key={s.id} step={s} />)}
-            <p style={{ marginTop: 16 }}><Link href={`/run/${run.id}`}>Open the full run</Link></p>
-          </section>
-        )}
+        <section id="start" className="section start-sec wrap" data-reveal>
+          <p className="label">Start</p>
+          <h2 className="h2"><span className="tone">Paste a tutorial.</span> Watch it run.</h2>
+          <StartBox />
+          <p className="start-note">Free during the hackathon. A run usually takes 10 to 25 minutes, and you can watch every step as it happens.</p>
+        </section>
 
-        <div className="wrap" style={{ marginTop: 96 }}>
-          <section className="sec">
-            <span className="num">01 THE PROBLEM</span>
-            <div>
-              <h2 className="h2">Tutorials break <em>silently</em>.</h2>
-              <p>A video stays up for years. The software it teaches does not. A command that once worked now prints a warning, or an error, or worse, prints Success while teaching something that was retired.</p>
-              <p>Viewers find out one by one, in the comments, after they have lost an evening. Nobody checks the video itself.</p>
-            </div>
-          </section>
+        <section id="how" className="section wrap">
+          <div data-reveal>
+            <p className="label">How it works</p>
+            <h2 className="h2"><span className="tone">Four moves,</span> one honest run.</h2>
+          </div>
+          <ol className="how">
+            {HOW.map(({ n, name, text, V }) => (
+              <li key={n} className="how-row" data-reveal>
+                <span className="how-n">{n}</span>
+                <div className="how-text">
+                  <h3>{name}</h3>
+                  <p>{text}</p>
+                </div>
+                <div className="how-vis"><V /></div>
+              </li>
+            ))}
+          </ol>
+        </section>
 
-          <section className="sec">
-            <span className="num">02 HOW IT WORKS</span>
-            <div>
-              <h2 className="h2">Four moves, one <em>run</em>.</h2>
-              <ol className="steps4">
-                <li><b>Watch</b><span>Muse Spark reads the video and its narration. Muse Voice Transcribe catches steps that are only spoken.</span></li>
-                <li><b>Point</b><span>SAM 3.1 outlines what was clicked in the old video, then finds the same thing on today&apos;s screen.</span></li>
-                <li><b>Run</b><span>Every step runs for real: terminal steps in an isolated container, website steps in a real browser, Blender steps in today&apos;s Blender. Each is marked works, changed or broken.</span></li>
-                <li><b>Repair</b><span>A fix is kept only if it runs. Otherwise the step stays broken.</span></li>
-              </ol>
-            </div>
-          </section>
+        <section id="results" className="section wrap">
+          <div data-reveal>
+            <p className="label">Then and now</p>
+            <h2 className="h2"><span className="tone">The old video,</span> beside today.</h2>
+          </div>
+          <div data-reveal>
+            <ZoomPair
+              then={{ src: "/hero/then.jpg", label: "2021, in the video", alt: "The 14.17.5 LTS download button in the 2021 video", box: { x1: 234, y1: 163, x2: 314, y2: 189, w: 640, h: 360 }, caption: "The video says: click 14.17.5 LTS. That version is end of life." }}
+              now={{ src: "/hero/now.jpg", label: "Today, run live", alt: "The Get Node.js button on nodejs.org today", box: { x1: 112, y1: 408, x2: 511, y2: 453, w: 1280, h: 720 }, caption: "Today the button reads Get Node.js. SAM 3.1 found it and Origin clicked it." }}
+            />
+          </div>
+          <figure className="cmp-fig" data-reveal>
+            <Compare
+              then={{ src: "/hero/then.jpg", label: "2021, in the video", alt: "nodejs.org in 2021 with the 14.17.5 LTS button outlined", box: { x1: 234, y1: 163, x2: 314, y2: 189, w: 640, h: 360 } }}
+              now={{ src: "/hero/now.jpg", label: "Today, run live", alt: "nodejs.org today with the Get Node.js button outlined", box: { x1: 112, y1: 408, x2: 511, y2: 453, w: 1280, h: 720 } }}
+            />
+            <figcaption>
+              Step 5 of a 2021 React tutorial. The button it tells you to click is gone; Origin found today&apos;s.
+              <Link href="/run/f6d2a108-4d25-459a-bd8f-d55e1721f8ab">Open the run</Link>
+            </figcaption>
+          </figure>
+          <figure className="cmp-fig" data-reveal>
+            <Compare
+              then={{ src: "/hero/barrel_then.jpg", label: "2019, in the video", alt: "The finished barrel model in the 2019 Blender tutorial" }}
+              now={{ src: "/hero/barrel_now.png", label: "Blender 5.2, rebuilt", alt: "Origin's rebuild of the barrel in today's Blender" }}
+            />
+            <figcaption>
+              A 2019 Blender tutorial rebuilt in Blender 5.2. Spark&apos;s verdict: partly matches.
+              <Link href="/run/95a35e1d-154f-480c-891d-aa586d5042bc">Open the run</Link>
+            </figcaption>
+          </figure>
+        </section>
 
-          <section className="sec">
-            <span className="num">03 THEN AND NOW</span>
-            <div>
-              <h2 className="h2">The old video beside <em>today</em>.</h2>
-              <p>Every step keeps the moment from the video in warm amber, with the outline of what was clicked. Next to it sits what the same step does now, crisp and live.</p>
-              <p>Along the top, a tape of the whole tutorial. Each step is a tick at its timestamp, colored by what happened when it ran.</p>
-            </div>
-          </section>
+        <section id="creators" className="section wrap creators">
+          <div className="creators-copy" data-reveal>
+            <p className="label">For creators</p>
+            <h2 className="h2"><span className="tone">Your video breaks at 01:08.</span> Pin the fix.</h2>
+            <p className="body-lg">Creators get the exact second a step stopped working, why, and the fix, plus a card drawn by Muse Image to post. Your viewers stop getting stuck.</p>
+            <Link href={`/run/${CREATOR_RUN}/creator`} className="pill pill-line">See a creator page</Link>
+          </div>
+          <figure className="creators-card" data-reveal>
+            <img src="/hero/card.png" alt="A step card drawn by Muse Image: step 8 at 01:08 is broken today, with the old command and why it fails" loading="lazy" />
+          </figure>
+        </section>
 
-          <section className="sec">
-            <span className="num">04 FOR CREATORS</span>
-            <div>
-              <h2 className="h2">Your video breaks at <em>3:42</em>.</h2>
-              <p>Creators get the exact second a step stopped working, why, and the fix. Pin the fix in your comments and your viewers stop getting stuck.</p>
-            </div>
-          </section>
+        <section className="section wrap proof" data-reveal>
+          <p className="label">Proof</p>
+          <h2 className="h2"><span className="tone">Every run is public,</span> misses included.</h2>
+          {stats && (
+            <dl className="stats">
+              <div><dt>Tutorials run to the end</dt><dd><CountUp value={stats.runs} /></dd></div>
+              <div><dt>Steps run for real</dt><dd><CountUp value={stats.checked} /></dd></div>
+              <div><dt>Steps changed or broken</dt><dd><CountUp value={stats.flagged} /></dd></div>
+            </dl>
+          )}
+          <Link href="/results" className="arrow-link">See every run, misses included</Link>
+        </section>
 
-          <section className="sec">
-            <span className="num">05 PROOF</span>
-            <div>
-              <h2 className="h2">Every run is <em>public</em>.</h2>
-              <p>No cherry picked demos. Each run keeps its steps, its verdicts and its full terminal output.</p>
-              <p><Link href="/results">See all results</Link></p>
-            </div>
-          </section>
-
-          <section className="sec">
-            <span className="num">06 FAQ</span>
-            <div className="faq">
-              <h2 className="h2">Honest <em>answers</em>.</h2>
-              {FAQ.map(([q, a]) => (
-                <details key={q}>
-                  <summary>{q}</summary>
-                  <p>{a}</p>
-                </details>
-              ))}
-            </div>
-          </section>
-        </div>
+        <section className="section wrap faq-sec" data-reveal>
+          <div>
+            <p className="label">FAQ</p>
+            <h2 className="h2"><span className="tone">Honest</span> answers.</h2>
+          </div>
+          <div className="faq">
+            {FAQ.map(([q, a], i) => (
+              <details key={q} open={i === 0}>
+                <summary>{q}</summary>
+                <p>{a}</p>
+              </details>
+            ))}
+          </div>
+        </section>
       </main>
       <Footer />
     </>

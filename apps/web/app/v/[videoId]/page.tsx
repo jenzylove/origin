@@ -1,7 +1,7 @@
 import { redirect } from "next/navigation";
 import { latestRunForVideo } from "@/lib/data";
 import { StartBox } from "@/components/StartBox";
-import { Header } from "@/components/Chrome";
+import { Footer, Header } from "@/components/Chrome";
 
 export const dynamic = "force-dynamic";
 
@@ -12,12 +12,13 @@ export default async function VideoPage({ params }: { params: Promise<{ videoId:
   return (
     <>
       <Header />
-      <main className="wrap section">
-        <p className="eyebrow">Video {videoId}</p>
-        <h1 className="display">Not <em>checked</em> yet.</h1>
-        <p className="lede">Nobody has run this tutorial. Paste it and Origin will.</p>
+      <main className="wrap results-page">
+        <p className="label">Not checked yet</p>
+        <h1 className="run-title"><span className="tone">Nobody has run</span> this tutorial.</h1>
+        <p className="body-lg results-lede">Paste it and Origin will run every step on today&apos;s software.</p>
         <StartBox initial={`https://www.youtube.com/watch?v=${videoId}`} />
       </main>
+      <Footer />
     </>
   );
 }

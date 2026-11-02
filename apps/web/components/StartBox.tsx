@@ -69,7 +69,7 @@ export function StartBox({ initial = "" }: { initial?: string }) {
           placeholder="Paste a YouTube link"
           aria-label="YouTube link"
         />
-        <button className="btn" disabled={busy}>{busy ? "Starting" : "Run it"}</button>
+        <button className="pill pill-dark" disabled={busy}>{busy ? "Starting" : "Run it"}</button>
       </form>
       <div className="alt">
         <span>or</span>
@@ -78,7 +78,7 @@ export function StartBox({ initial = "" }: { initial?: string }) {
         </button>
         <input ref={file} type="file" accept="video/mp4" hidden onChange={picked} />
       </div>
-      {error && <p className="msg-err" role="alert">{error}</p>}
+      {error && <p className="msg-err" role="alert"><span className="msg-dot" aria-hidden="true" />{error}</p>}
     </div>
   );
 }
